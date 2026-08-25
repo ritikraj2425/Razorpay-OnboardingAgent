@@ -8,12 +8,12 @@ from app.models.merchant import Merchant
 from app.models.merchant_snapshot import MerchantSnapshot
 from app.models.recheck_job import RecheckJob
 from app.models.risk_signal import RiskSignal
-from app.services.ai_investigation_service import generate_mock_report
+from app.services.ai_investigation_service import generate_risk_report
 from app.services.audit_service import log_event
 from app.services.hash_diff_service import hash_changed, sha256_text
-from app.services.mock_razorpay_service import lower_payout_limit
+from app.services.payment_provider_service import lower_payout_limit
 from app.services.vector_diff_service import semantic_distance
-from app.services.website_intel_service import mock_site_for
+from app.services.website_intel_service import crawl_merchant_site
 
 
 def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJob:
@@ -27,8 +27,15 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         .first()
     )
 
-    drift = "stylebazaar" in merchant.business_name.lower() or "gadgetflash" in merchant.business_name.lower()
-    latest = mock_site_for(merchant.business_name, merchant.category, drift=drift)
+    latest = crawl_merchant_site(
+        merchant.website_url,
+        [
+            merchant.refund_policy_url,
+            merchant.shipping_policy_url,
+            merchant.privacy_policy_url,
+            merchant.terms_url,
+        ],
+    )
     latest_hash = sha256_text(latest.html)
     job = RecheckJob(
         merchant_id=merchant_id,
@@ -39,6 +46,16 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
     db.commit()
     db.refresh(job)
     log_event(db, merchant_id, "Recheck triggered", trigger_reason)
+
+    if not latest.available:
+        job.tier_reached = 1
+        job.status = "SERVICE_UNREACHABLE"
+        job.result_summary = f"Website unavailable during recheck. HTTP {latest.status_code}. Merchant is not rejected automatically."
+        db.add(RiskSignal(merchant_id=merchant_id, level="medium", source="crawler", reason_code="SERVICE_UNREACHABLE", description=job.result_summary))
+        log_event(db, merchant_id, "Website availability", job.result_summary)
+        db.commit()
+        db.refresh(job)
+        return job
 
     if baseline and not hash_changed(baseline.html_hash, latest_hash):
         job.tier_reached = 2
@@ -76,7 +93,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         job.result_summary = f"Suspicious but moderate semantic drift ({distance}). Watchlist signal created."
         db.add(RiskSignal(merchant_id=merchant_id, level="medium", source="vector_diff", reason_code="MODERATE_DRIFT", description=job.result_summary))
     else:
-        report = generate_mock_report(merchant.business_name, trigger_reason, latest.text)
+        report = generate_risk_report(merchant.business_name, trigger_reason, latest.text, merchant.website_url)
         job.tier_reached = 4
         job.status = "AI_REVIEW"
         job.result_summary = f"Tier 4 AI report generated. Recommendation: {report.decision_recommendation}."

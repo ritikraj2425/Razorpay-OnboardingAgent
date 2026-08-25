@@ -1,3 +1,3 @@
-from app.services.website_intel_service import mock_site_for
+from app.services.website_intel_service import crawl_merchant_site
 
-__all__ = ["mock_site_for"]
+__all__ = ["crawl_merchant_site"]

@@ -22,7 +22,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    const body = await response.text();
+    let message = body || `Request failed (${response.status})`;
+    try {
+      const parsed = JSON.parse(body);
+      if (Array.isArray(parsed.detail)) {
+        message = parsed.detail.map((item: { loc?: string[]; msg?: string }) => `${item.loc?.at(-1) ?? "field"}: ${item.msg ?? "Invalid value"}`).join("; ");
+      } else if (typeof parsed.detail === "string") {
+        message = parsed.detail;
+      }
+    } catch {}
+    throw new Error(message);
   }
   return response.json();
 }

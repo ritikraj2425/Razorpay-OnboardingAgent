@@ -6,7 +6,8 @@ Autonomous merchant risk orchestration for Razorpay-style onboarding and post-on
 
 - Backend: FastAPI, SQLAlchemy, SQLite, Pydantic
 - Frontend: Next.js, TypeScript, Tailwind CSS, Recharts, Lucide icons
-- Demo mode: seeded merchants, mock Razorpay actions, mock Meta ads, mock AI underwriter reports
+- Real mode by default: live website crawl/extraction, SQLite persistence, scheduled background rechecks, deterministic risk rules
+- Optional integrations: Razorpay account activation, Meta Ad Library, and LLM underwriter reports once credentials are configured
 
 ## Run Locally
 
@@ -30,7 +31,16 @@ npm run dev
 
 Open `http://localhost:3000/admin`.
 
-## Demo Flows
+## What You Must Provide For Production-Like Use
+
+- Real merchant website URLs and policy URLs.
+- KYB document files or document storage keys.
+- Razorpay partner/sandbox credentials for real account activation workflows.
+- Meta Ad Library token for live ad checks.
+- Groq API key for fast free-tier LLM underwriter reports. OpenAI is still supported as a fallback.
+- PostgreSQL/Supabase URL if you do not want local SQLite.
+
+## Test Flows
 
 - Register a merchant at `/merchant/register`.
 - Review the trust score and decision in the response panel.

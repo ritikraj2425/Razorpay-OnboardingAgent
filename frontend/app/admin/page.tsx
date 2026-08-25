@@ -60,6 +60,7 @@ export default async function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
+                {!merchants.length && <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-500">No merchants have been onboarded yet.</td></tr>}
                 {merchants.map((merchant) => (
                   <tr key={merchant.id} className="border-t border-line">
                     <td className="px-4 py-3 font-semibold"><Link href={`/admin/merchants/${merchant.id}`}>{merchant.business_name}</Link></td>

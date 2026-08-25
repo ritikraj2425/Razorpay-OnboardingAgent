@@ -4,11 +4,19 @@
 
 :root {
   color-scheme: light;
+  --page: #f3f6f9;
+  --ink: #14232e;
+  --muted: #667784;
+  --line: #dbe3e8;
 }
 
 body {
-  background: #eef2f7;
-  color: #101828;
+  background-color: var(--page);
+  background-image: linear-gradient(rgba(20, 35, 46, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(20, 35, 46, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  letter-spacing: 0;
 }
 
 * {
@@ -17,4 +25,16 @@ body {
 
 .focus-ring {
   @apply focus:outline-none focus:ring-2 focus:ring-cobalt focus:ring-offset-2;
+}
+
+button, a, input {
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+::selection {
+  background: #c7d2fe;
 }

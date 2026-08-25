@@ -11,11 +11,22 @@ from app.models.recheck_job import RecheckJob
 from app.models.risk_signal import RiskSignal
 from app.models.transaction_summary import TransactionSummary
 from app.services.hash_diff_service import sha256_text
-from app.services.website_intel_service import mock_site_for
+from app.services.website_intel_service import WebsiteIntel
 
 
 def _snapshot(db, merchant: Merchant, kind: str = "baseline", drift: bool = False, score: float = 0):
-    intel = mock_site_for(merchant.business_name, merchant.category, drift=drift)
+    if drift:
+        text = "Replica luxury watches, premium first-copy accessories, imported brand clones."
+        policies = "No returns on replica watches."
+        products = "Replica watches, luxury clones"
+        prices = "Watch Rs 2999"
+    else:
+        text = f"{merchant.business_name} sells {merchant.category} products with visible policies and support."
+        policies = "Refunds within 7 days. Shipping in 3-5 days. Privacy and terms are published."
+        products = f"{merchant.category} catalog"
+        prices = "Average product Rs 999"
+    html = f"<html><body>{text} {policies} {products} {prices}</body></html>"
+    intel = WebsiteIntel(html=html, text=text, policy_text=policies, product_summary=products, price_summary=prices, support_summary=merchant.support_email, is_spa=False)
     db.add(
         MerchantSnapshot(
             merchant_id=merchant.id,
@@ -57,13 +68,13 @@ def seed_database() -> None:
         _snapshot(db, style, kind="latest", drift=True, score=0.61)
         db.add(RecheckJob(merchant_id=style.id, trigger_reason="Day-10 catalog drift", tier_reached=4, status="AI_REVIEW", result_summary="Replica watches detected after approval. Payout limit lowered.", cost_saved=0))
         db.add(RiskSignal(merchant_id=style.id, level="high", source="llm", reason_code="CATALOG_DRIFT", description="Clothing baseline changed to replica luxury watches."))
-        db.add(AIReport(merchant_id=style.id, risk_score=88, risk_level="high", decision_recommendation="lower_payout_limit", reason_codes="CATALOG_DRIFT|COUNTERFEIT_RISK", evidence="mock://crawl/stylebazaar", underwriter_memo="Approved clothing merchant now advertises replica watches. Lower payout limit and request invoices.", merchant_message="Please provide inventory invoices and catalog clarification."))
+        db.add(AIReport(merchant_id=style.id, risk_score=88, risk_level="high", decision_recommendation="lower_payout_limit", reason_codes="CATALOG_DRIFT|COUNTERFEIT_RISK", evidence="sample://crawl/stylebazaar", underwriter_memo="Approved clothing merchant now advertises replica watches. Lower payout limit and request invoices.", merchant_message="Please provide inventory invoices and catalog clarification."))
         db.add(HumanReviewCase(merchant_id=style.id, suggested_action="lower_payout_limit", memo="Approved clothing merchant now advertises replica watches. Lower payout limit and request invoices."))
 
         gadget = merchants[3]
         db.add(AdSnapshot(merchant_id=gadget.id, headline="iPhone for Rs 999 today", body="Urgent sale with 30-day money-back guarantee.", landing_page_url="https://gadgetflash.example/hidden-iphone", claimed_price=999, claimed_refund="30-day guarantee", flags="BAIT_AND_SWITCH_PRICING|POLICY_MISMATCH"))
         db.add(RiskSignal(merchant_id=gadget.id, level="high", source="ad", reason_code="BAIT_AND_SWITCH_PRICING", description="Ad says Rs 999 while site checkout shows Rs 7999."))
-        db.add(HumanReviewCase(merchant_id=gadget.id, suggested_action="temporary_hold", memo="Mock Meta ad mismatch: iPhone advertised at Rs 999, checkout shows Rs 7999, refund guarantee conflicts with exclusions."))
+        db.add(HumanReviewCase(merchant_id=gadget.id, suggested_action="temporary_hold", memo="Sample ad mismatch: iPhone advertised at Rs 999, checkout shows Rs 7999, refund guarantee conflicts with exclusions."))
 
         festive = merchants[5]
         db.add(TransactionSummary(merchant_id=festive.id, refund_rate=0.02, chargeback_rate=0.003, velocity_spike=3.4, complaint_count=2))

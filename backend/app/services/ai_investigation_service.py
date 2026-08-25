@@ -1,21 +1,54 @@
+import json
+
+import httpx
+
+from app.core.config import settings
 from app.schemas.ai_schema import AIInvestigationReport, Evidence
 
 
-def generate_mock_report(merchant_name: str, trigger: str, source_text: str) -> AIInvestigationReport:
+def generate_risk_report(merchant_name: str, trigger: str, source_text: str, source_url: str = "crawl://latest") -> AIInvestigationReport:
+    if settings.groq_api_key:
+        report = _provider_report(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            base_url="https://api.groq.com/openai/v1/chat/completions",
+            merchant_name=merchant_name,
+            trigger=trigger,
+            source_text=source_text,
+            source_url=source_url,
+        )
+        if report:
+            return report
+    if settings.openai_api_key:
+        report = _provider_report(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            base_url="https://api.openai.com/v1/chat/completions",
+            merchant_name=merchant_name,
+            trigger=trigger,
+            source_text=source_text,
+            source_url=source_url,
+        )
+        if report:
+            return report
+    return generate_rule_based_report(merchant_name, trigger, source_text, source_url)
+
+
+def generate_rule_based_report(merchant_name: str, trigger: str, source_text: str, source_url: str = "crawl://latest") -> AIInvestigationReport:
     lower = source_text.lower()
-    if "replica" in lower or "iphone rs 7999" in lower or "guaranteed investment" in lower:
-        quote = "Replica luxury watches" if "replica" in source_text else source_text[:80]
+    if "replica" in lower or "guaranteed investment" in lower or "miracle cure" in lower or "betting" in lower:
+        quote = _first_matching_quote(source_text, ["replica", "guaranteed investment", "miracle cure", "betting"])
         return AIInvestigationReport(
             risk_score=88,
             risk_level="high",
             decision_recommendation="lower_payout_limit",
-            reason_codes=["CATALOG_DRIFT", "POLICY_OR_AD_MISMATCH"],
+            reason_codes=["HIGH_RISK_WEBSITE_CLAIM", "POLICY_OR_CATEGORY_MISMATCH"],
             evidence=[
                 Evidence(
                     type="website",
-                    url="mock://crawl/latest",
+                    url=source_url,
                     quote=quote,
-                    explanation="Verified high-risk wording appears in crawled content.",
+                    explanation="High-risk wording was found in crawled merchant content.",
                 )
             ],
             underwriter_memo=f"{merchant_name} requires manual review after {trigger}. Evidence supports payout limit reduction pending clarification.",
@@ -30,3 +63,70 @@ def generate_mock_report(merchant_name: str, trigger: str, source_text: str) -> 
         underwriter_memo=f"{merchant_name} shows benign drift. No severe action recommended.",
         merchant_message="No action needed.",
     )
+
+
+def _provider_report(
+    api_key: str,
+    model: str,
+    base_url: str,
+    merchant_name: str,
+    trigger: str,
+    source_text: str,
+    source_url: str,
+) -> AIInvestigationReport | None:
+    prompt = {
+        "merchant_name": merchant_name,
+        "trigger": trigger,
+        "source_url": source_url,
+        "crawled_text": source_text[:12000],
+        "rules": [
+            "Do not invent facts.",
+            "Every high-risk claim must include a quote copied from crawled_text.",
+            "Permanent termination is not allowed; recommend human review for severe actions.",
+        ],
+    }
+    schema = AIInvestigationReport.model_json_schema()
+    try:
+        response = httpx.post(
+            base_url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "You are a merchant risk underwriter. Return only valid JSON."},
+                    {"role": "user", "content": json.dumps(prompt)},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "sentinelpay_underwriter_report",
+                        "schema": schema,
+                        "strict": True,
+                    },
+                },
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        report = AIInvestigationReport.model_validate_json(content)
+        verified_evidence = [
+            item for item in report.evidence if not item.quote or item.quote.lower() in source_text.lower()
+        ]
+        return report.model_copy(update={"evidence": verified_evidence})
+    except Exception:
+        return None
+
+
+def _first_matching_quote(source_text: str, needles: list[str]) -> str:
+    lower = source_text.lower()
+    for needle in needles:
+        index = lower.find(needle)
+        if index >= 0:
+            start = max(0, index - 60)
+            end = min(len(source_text), index + 120)
+            return source_text[start:end].strip()
+    return source_text[:180].strip()

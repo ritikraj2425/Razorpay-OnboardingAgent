@@ -15,7 +15,7 @@ router = APIRouter()
 
 @router.post("/register", response_model=VerificationResult)
 def register(payload: MerchantCreate, db: Session = Depends(get_db)):
-    merchant, checklist, reasons, memo = create_merchant(db, payload)
+    merchant, checklist, reasons, memo, steps = create_merchant(db, payload)
     return VerificationResult(
         merchant=merchant,
         decision=merchant.status,
@@ -24,6 +24,7 @@ def register(payload: MerchantCreate, db: Session = Depends(get_db)):
         checklist=checklist,
         reason_codes=reasons,
         underwriter_memo=memo,
+        steps=steps,
     )
 
 

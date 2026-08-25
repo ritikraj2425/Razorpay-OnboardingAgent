@@ -1,6 +1,6 @@
 import { Clock, UploadCloud } from "lucide-react";
 import { Shell } from "@/components/Shell";
-import { Badge, Button, Panel, statusTone } from "@/components/ui";
+import { Badge, Button, Notice, Panel, statusTone } from "@/components/ui";
 import { getMerchants } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export default async function MerchantPortal() {
   ];
   return (
     <Shell>
+      {!merchant ? <Panel className="p-8 text-center"><h1 className="text-xl font-bold">No merchant workspace found</h1><p className="mt-2 text-sm text-slate-500">Register a merchant before opening the remediation portal.</p></Panel> : <>
       <div className="mb-5">
         <h1 className="text-2xl font-bold">Merchant Remediation Portal</h1>
         <p className="text-sm text-slate-500">{merchant.business_name} · Trust score {merchant.trust_score}</p>
@@ -40,6 +41,7 @@ export default async function MerchantPortal() {
           <div className="border-t border-line bg-field px-4 py-3 text-sm text-slate-600">Re-audit status: priority audit will run immediately after final submission. Final decision remains pending.</div>
         </Panel>
       </div>
+      </>}
     </Shell>
   );
 }

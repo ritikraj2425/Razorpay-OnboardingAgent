@@ -6,6 +6,7 @@ from app.models.audit_log import AuditLog
 from app.models.merchant import Merchant
 from app.models.recheck_job import RecheckJob
 from app.models.risk_signal import RiskSignal
+from app.workers.scheduler import process_due_rechecks
 
 router = APIRouter()
 
@@ -39,3 +40,9 @@ def metrics(db: Session = Depends(get_db)):
 @router.get("/events")
 def recent_events(db: Session = Depends(get_db)):
     return db.query(AuditLog).order_by(AuditLog.id.desc()).limit(12).all()
+
+
+@router.post("/scheduler/run-due")
+def run_due_rechecks():
+    process_due_rechecks()
+    return {"status": "processed"}
