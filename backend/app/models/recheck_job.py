@@ -18,3 +18,4 @@ class RecheckJob(Base):
     cost_saved: Mapped[float] = mapped_column(Float, default=0)
     last_checked_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     next_check_due: Mapped[str] = mapped_column(String(40), default="")
+    tier_details: Mapped[str] = mapped_column(Text, default="[]")

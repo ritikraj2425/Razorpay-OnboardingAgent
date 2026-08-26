@@ -17,7 +17,9 @@ def serialize_case(db: Session, case: HumanReviewCase):
     return {
         "id": case.id,
         "merchant_id": case.merchant_id,
-        "merchant_name": merchant.business_name if merchant else "Unknown",
+        "merchant_name": merchant.legal_business_name if merchant else "Unknown",
+        "business_type": merchant.business_type if merchant else "",
+        "category": merchant.category if merchant else "",
         "status": case.status,
         "suggested_action": case.suggested_action,
         "memo": case.memo,

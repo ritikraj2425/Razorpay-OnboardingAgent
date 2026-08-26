@@ -1,50 +1,176 @@
+import React from "react";
 import { cn } from "@/lib/utils";
 
-export function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "good" | "warn" | "bad" | "info" }) {
-  const tones = {
-    neutral: "bg-slate-100 text-slate-700 border-slate-200",
-    good: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    warn: "bg-amber-50 text-amber-700 border-amber-200",
-    bad: "bg-rose-50 text-rose-700 border-rose-200",
-    info: "bg-blue-50 text-blue-700 border-blue-200",
-  };
-  return <span className={cn("inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold border", tones[tone])}>{children}</span>;
-}
+/* ── Badge ── */
+type Tone = "neutral" | "success" | "warning" | "danger" | "blue" | "purple";
 
-export function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <section className={cn("rounded-lg border border-line bg-white shadow-soft", className)}>{children}</section>;
-}
+const TONE_BADGE: Record<Tone, string> = {
+  neutral: "bg-gray-100 text-gray-700 border-gray-200",
+  success: "bg-success-subtle text-green-700 border-green-200",
+  warning: "bg-warning-subtle text-amber-700 border-amber-200",
+  danger:  "bg-danger-subtle text-red-700 border-red-200",
+  blue:    "bg-accent-subtle text-blue-700 border-blue-200",
+  purple:  "bg-purple-50 text-purple-700 border-purple-200",
+};
 
-export function Button({ children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function Badge({ children, tone = "neutral", size = "sm" }: {
+  children: React.ReactNode;
+  tone?: Tone;
+  size?: "xs" | "sm";
+}) {
   return (
-    <button className={cn("focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50", className)} {...props}>
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full border font-medium",
+      size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-2 py-0.5 text-[11px]",
+      TONE_BADGE[tone]
+    )}>
+      {children}
+    </span>
+  );
+}
+
+/* ── Card ── */
+export function Card({ children, className, padding = true }: {
+  children: React.ReactNode;
+  className?: string;
+  padding?: boolean;
+}) {
+  return (
+    <div className={cn(
+      "rounded-2xl bg-white border border-gray-200 shadow-sm",
+      padding && "p-6",
+      className
+    )}>
+      {children}
+    </div>
+  );
+}
+
+/* ── Button ── */
+type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
+type BtnSize = "sm" | "md" | "lg";
+
+const BTN_VARIANT: Record<BtnVariant, string> = {
+  primary:   "bg-gray-900 text-white hover:bg-gray-800 shadow-xs",
+  secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-xs",
+  ghost:     "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+  danger:    "bg-danger text-white hover:opacity-90 shadow-xs",
+};
+const BTN_SIZE: Record<BtnSize, string> = {
+  sm: "h-8 px-3 text-sm gap-1.5 rounded-lg",
+  md: "h-10 px-4 text-sm gap-2 rounded-xl",
+  lg: "h-11 px-6 text-[15px] gap-2 rounded-xl",
+};
+
+export function Button({ children, className, variant = "primary", size = "md", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: BtnVariant;
+  size?: BtnSize;
+}) {
+  return (
+    <button className={cn(
+      "inline-flex items-center justify-center font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed",
+      BTN_VARIANT[variant],
+      BTN_SIZE[size],
+      className
+    )} {...props}>
       {children}
     </button>
   );
 }
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn("focus-ring h-10 w-full rounded-md border border-line bg-white px-3 text-sm placeholder:text-slate-400", className)} {...props} />;
+/* ── Input ── */
+export function Input({ className, label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="block text-sm font-semibold text-gray-700">{label} {props.required && <span className="text-danger">*</span>}</label>}
+      <input className={cn(
+        "h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 transition",
+        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        className
+      )} {...props} />
+    </div>
+  );
 }
 
-export function Notice({ children, tone = "error" }: { children: React.ReactNode; tone?: "error" | "info" }) {
-  return <div role="alert" className={cn("rounded-md border px-3 py-2 text-sm", tone === "error" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-blue-200 bg-blue-50 text-blue-800")}>{children}</div>;
+/* ── Select ── */
+export function Select({ className, label, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="block text-sm font-semibold text-gray-700">{label}</label>}
+      <select className={cn(
+        "h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 transition",
+        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        className
+      )} {...props}>
+        {children}
+      </select>
+    </div>
+  );
 }
 
-export function Label({ children }: { children: React.ReactNode }) {
-  return <label className="text-xs font-semibold uppercase tracking-normal text-slate-500">{children}</label>;
+/* ── Textarea ── */
+export function Textarea({ className, label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="block text-sm font-semibold text-gray-700">{label}</label>}
+      <textarea className={cn(
+        "w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition resize-none",
+        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        className
+      )} {...props} />
+    </div>
+  );
 }
 
-export function riskTone(risk: string): "good" | "warn" | "bad" | "info" {
-  if (risk === "low") return "good";
-  if (risk === "medium") return "warn";
-  if (risk === "critical") return "bad";
-  return "bad";
+/* ── Alert ── */
+type AlertTone = "info" | "success" | "warning" | "error";
+const ALERT: Record<AlertTone, string> = {
+  info:    "bg-accent-subtle border-blue-200 text-blue-800",
+  success: "bg-success-subtle border-green-200 text-green-800",
+  warning: "bg-warning-subtle border-amber-200 text-amber-800",
+  error:   "bg-danger-subtle border-red-200 text-red-800",
+};
+
+export function Alert({ children, tone = "info", className }: { children: React.ReactNode; tone?: AlertTone; className?: string }) {
+  return (
+    <div className={cn("rounded-xl border px-4 py-3 text-sm font-medium", ALERT[tone], className)}>
+      {children}
+    </div>
+  );
 }
 
-export function statusTone(status: string): "good" | "warn" | "bad" | "info" {
-  if (status === "APPROVED") return "good";
-  if (status === "PENDING_REMEDIATION") return "warn";
-  if (status === "RESTRICTED" || status === "REJECTED") return "bad";
-  return "info";
+/* ── Stat ── */
+export function Stat({ label, value, sub, tone }: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  tone?: Tone;
+}) {
+  return (
+    <Card className="p-5 flex flex-col gap-3">
+      <span className="text-xs font-semibold uppercase tracking-widest text-gray-500">{label}</span>
+      <span className={cn("text-3xl font-bold tabular-nums", tone === "success" && "text-success", tone === "danger" && "text-danger", !tone && "text-gray-900")}>
+        {value}
+      </span>
+      {sub && <span className="text-xs text-gray-400">{sub}</span>}
+    </Card>
+  );
+}
+
+/* ── Risk Tone Helpers ── */
+export function riskTone(risk: string): Tone {
+  if (risk === "low")      return "success";
+  if (risk === "medium")   return "warning";
+  if (risk === "high")     return "danger";
+  if (risk === "critical") return "danger";
+  return "neutral";
+}
+
+export function statusTone(status: string): Tone {
+  if (status === "APPROVED")             return "success";
+  if (status === "PENDING_REMEDIATION")  return "warning";
+  if (status === "MANUAL_REVIEW")        return "blue";
+  if (status === "RESTRICTED")           return "purple";
+  if (status === "REJECTED")             return "danger";
+  return "neutral";
 }

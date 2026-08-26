@@ -49,8 +49,10 @@ def get_diff(merchant_id: int, db: Session = Depends(get_db)):
     snapshots = db.query(MerchantSnapshot).filter(MerchantSnapshot.merchant_id == merchant_id).order_by(MerchantSnapshot.id.asc()).all()
     if not snapshots:
         raise HTTPException(404, "Snapshots not found")
+    
     baseline = snapshots[0]
-    latest = snapshots[-1]
+    latest = snapshots[-1] if len(snapshots) > 1 else baseline
+    
     return {
         "baseline": baseline,
         "latest": latest,

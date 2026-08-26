@@ -2,9 +2,12 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export type Merchant = {
   id: number;
-  business_name: string;
-  owner_name: string;
+  business_type: string;
+  legal_business_name: string;
+  customer_facing_business_name: string;
+  contact_name: string;
   category: string;
+  subcategory: string;
   website_url: string;
   status: string;
   risk_level: string;
@@ -13,6 +16,55 @@ export type Merchant = {
   support_phone: string;
   remediation_deadline: string;
   payout_limit: number;
+  pan: string;
+  gst: string;
+  bank_account: string;
+  ifsc: string;
+  registered_state: string;
+  registered_city: string;
+  stakeholder_name: string;
+};
+
+export type VerificationStep = {
+  name: string;
+  status: string;
+  detail: string;
+  duration_ms?: number;
+  category?: string;
+};
+
+export type VerificationResult = {
+  merchant: Merchant;
+  decision: string;
+  score: number;
+  risk_level: string;
+  checklist: string[];
+  reason_codes: string[];
+  underwriter_memo: string;
+  steps: VerificationStep[];
+};
+
+export type TierDetail = {
+  tier: number;
+  name: string;
+  status: string;
+  detail: string;
+  duration_ms?: number;
+};
+
+export type RecheckJob = {
+  id: number;
+  merchant_id: number;
+  merchant_name: string;
+  risk_level: string;
+  trigger_reason: string;
+  tier_reached: number;
+  status: string;
+  result_summary: string;
+  cost_saved: number;
+  last_checked_at: string;
+  next_check_due: string;
+  tier_details: TierDetail[];
 };
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -47,4 +99,8 @@ export async function getMetrics() {
 
 export async function getEvents() {
   return api<any[]>("/api/admin/events");
+}
+
+export async function getRechecks() {
+  return api<RecheckJob[]>("/api/rechecks");
 }

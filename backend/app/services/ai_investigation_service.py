@@ -95,6 +95,7 @@ def _provider_report(
             },
             json={
                 "model": model,
+                "temperature": 0.0,
                 "messages": [
                     {"role": "system", "content": "You are a merchant risk underwriter. Return only valid JSON."},
                     {"role": "user", "content": json.dumps(prompt)},

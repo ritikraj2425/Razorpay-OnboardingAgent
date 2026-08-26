@@ -1,40 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: light;
-  --page: #f3f6f9;
-  --ink: #14232e;
-  --muted: #667784;
-  --line: #dbe3e8;
+  --bg: #F6F7F9;
+  --surface: #FFFFFF;
+  --border: #E4E7EC;
+  --text-primary: #101828;
+  --text-secondary: #667085;
+  --accent: #0066FF;
+  --accent-subtle: #EFF4FF;
+  --success: #12B76A;
+  --success-subtle: #ECFDF3;
+  --warning: #F79009;
+  --warning-subtle: #FFFAEB;
+  --danger: #F04438;
+  --danger-subtle: #FEF3F2;
 }
 
+* { box-sizing: border-box; }
+
+html { font-family: 'DM Sans', system-ui, sans-serif; }
 body {
-  background-color: var(--page);
-  background-image: linear-gradient(rgba(20, 35, 46, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(20, 35, 46, 0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
-  color: var(--ink);
-  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
-  letter-spacing: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
+/* Monospace for technical values */
+.mono { font-family: 'DM Mono', 'Fira Code', monospace; }
+
+::selection { background: #C7D7FE; color: #101828; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D0D5DD; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #98A2B3; }
+
+/* Terminal / agent output */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-cobalt focus:ring-offset-2;
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-button, a, input {
-  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-button:active:not(:disabled) {
-  transform: translateY(1px);
+@keyframes expandWidth {
+  from { width: 0; }
+  to   { width: 100%; }
 }
 
-::selection {
-  background: #c7d2fe;
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
 }
+
+.animate-blink { animation: blink 1s step-end infinite; }
+.animate-slide-down { animation: slideDown 0.3s ease forwards; }
+.animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-pulse-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
+
+/* Line draw for pipeline connector */
+@keyframes drawLine {
+  from { height: 0; }
+  to   { height: 100%; }
+}
+.animate-draw { animation: drawLine 0.5s ease forwards; }

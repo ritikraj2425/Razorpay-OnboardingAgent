@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -12,10 +14,14 @@ router = APIRouter()
 
 def serialize_job(db: Session, job: RecheckJob):
     merchant = db.get(Merchant, job.merchant_id)
+    try:
+        tier_details = json.loads(job.tier_details) if job.tier_details else []
+    except (json.JSONDecodeError, TypeError):
+        tier_details = []
     return {
         "id": job.id,
         "merchant_id": job.merchant_id,
-        "merchant_name": merchant.business_name if merchant else "Unknown",
+        "merchant_name": merchant.legal_business_name if merchant else "Unknown",
         "risk_level": merchant.risk_level if merchant else "medium",
         "trigger_reason": job.trigger_reason,
         "tier_reached": job.tier_reached,
@@ -24,6 +30,7 @@ def serialize_job(db: Session, job: RecheckJob):
         "cost_saved": job.cost_saved,
         "last_checked_at": job.last_checked_at.isoformat(),
         "next_check_due": job.next_check_due,
+        "tier_details": tier_details,
     }
 
 
