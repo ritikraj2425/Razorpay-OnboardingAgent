@@ -104,3 +104,11 @@ export async function getEvents() {
 export async function getRechecks() {
   return api<RecheckJob[]>("/api/rechecks");
 }
+
+export async function triggerEvent(merchantId: number, eventType: string, details: string = "") {
+  return api<any>(`/api/rechecks/${merchantId}/trigger-event`, {
+    method: "POST",
+    body: JSON.stringify({ event_type: eventType, details }),
+  });
+}
+

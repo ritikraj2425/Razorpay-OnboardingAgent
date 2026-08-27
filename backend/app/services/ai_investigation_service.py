@@ -6,7 +6,13 @@ from app.core.config import settings
 from app.schemas.ai_schema import AIInvestigationReport, Evidence
 
 
-def generate_risk_report(merchant_name: str, trigger: str, source_text: str, source_url: str = "crawl://latest") -> AIInvestigationReport:
+def generate_risk_report(
+    merchant_name: str, 
+    trigger: str, 
+    source_text: str, 
+    source_url: str = "crawl://latest",
+    kyc_data: str = "",
+) -> AIInvestigationReport:
     if settings.groq_api_key:
         report = _provider_report(
             api_key=settings.groq_api_key,
@@ -16,6 +22,7 @@ def generate_risk_report(merchant_name: str, trigger: str, source_text: str, sou
             trigger=trigger,
             source_text=source_text,
             source_url=source_url,
+            kyc_data=kyc_data,
         )
         if report:
             return report
@@ -28,6 +35,7 @@ def generate_risk_report(merchant_name: str, trigger: str, source_text: str, sou
             trigger=trigger,
             source_text=source_text,
             source_url=source_url,
+            kyc_data=kyc_data,
         )
         if report:
             return report
@@ -36,6 +44,18 @@ def generate_risk_report(merchant_name: str, trigger: str, source_text: str, sou
 
 def generate_rule_based_report(merchant_name: str, trigger: str, source_text: str, source_url: str = "crawl://latest") -> AIInvestigationReport:
     lower = source_text.lower()
+    
+    if not source_text.strip() or "ConnectError" in source_text or "HTTP 0" in source_text:
+        return AIInvestigationReport(
+            risk_score=95,
+            risk_level="critical",
+            decision_recommendation="reject",
+            reason_codes=["UNREACHABLE_WEBSITE"],
+            evidence=[],
+            underwriter_memo=f"{merchant_name} website ({source_url}) could not be reached or returned 0 content. Flagged as CRITICAL.",
+            merchant_message="Your website could not be accessed by our agents. Please ensure the domain is active and publicly accessible without CAPTCHAs.",
+        )
+    
     if "replica" in lower or "guaranteed investment" in lower or "miracle cure" in lower or "betting" in lower:
         quote = _first_matching_quote(source_text, ["replica", "guaranteed investment", "miracle cure", "betting"])
         return AIInvestigationReport(
@@ -73,15 +93,23 @@ def _provider_report(
     trigger: str,
     source_text: str,
     source_url: str,
+    kyc_data: str = "",
 ) -> AIInvestigationReport | None:
     prompt = {
         "merchant_name": merchant_name,
         "trigger": trigger,
         "source_url": source_url,
+        "kyc_data": kyc_data,
         "crawled_text": source_text[:12000],
         "rules": [
+            "Act as a Payment Gateway Go-Live Auditor.",
+            "1. DUMMY CONTENT: Actively search for dummy data, lorem ipsum, or placeholder text (e.g., 'test1', 'demo', 'test course'). If found, flag it with reason code DUMMY_CONTENT_DETECTED and explicitly ask the merchant to add real products/courses.",
+            "2. PROHIBITED GOODS: Check for illegal or high-risk categories (e.g., replica goods, gambling, miracle cures).",
+            "3. BUSINESS LEGITIMACY: Ensure there is some indication of a real business (contact info, coherent pricing).",
+            "4. REGISTRY MATCH: Cross-reference the website content with the provided kyc_data. If the website clearly belongs to a different business entity or the KYC data appears to be dummy/fake (e.g. Stakeholder 'Test'), you MUST flag it.",
+            "5. EMPTY WEBSITE: If crawled_text is completely empty or indicates the website is unreachable (e.g. ConnectError), you MUST flag the merchant as 'critical' risk with reason code 'UNREACHABLE_WEBSITE'. Do NOT approve unreachable websites.",
+            "Every high-risk claim must include a quote copied precisely from crawled_text.",
             "Do not invent facts.",
-            "Every high-risk claim must include a quote copied from crawled_text.",
             "Permanent termination is not allowed; recommend human review for severe actions.",
         ],
     }

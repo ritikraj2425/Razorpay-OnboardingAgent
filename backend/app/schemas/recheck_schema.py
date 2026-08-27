@@ -1,19 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RecheckRequest(BaseModel):
-    trigger_reason: str = "Manual admin recheck requested"
+    trigger_reason: str = Field(default="manual_recheck", min_length=2)
 
 
-class RecheckOut(BaseModel):
-    id: int
-    merchant_id: int
-    merchant_name: str
-    risk_level: str
-    trigger_reason: str
-    tier_reached: int
-    status: str
-    result_summary: str
-    cost_saved: float
-    last_checked_at: str
-    next_check_due: str
+class EventTriggerRequest(BaseModel):
+    event_type: str = Field(description="TRANSACTION_SPIKE | COMPLAINT_SPIKE | CONTENT_CHANGE | MANUAL")
+    details: str = Field(default="", description="Human-readable context for the trigger")

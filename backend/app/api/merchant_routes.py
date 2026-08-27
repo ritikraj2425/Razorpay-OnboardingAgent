@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+import os
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -10,7 +13,22 @@ from app.schemas.merchant_schema import MerchantCreate, MerchantOut
 from app.schemas.verification_schema import VerificationResult
 from app.services.merchant_service import create_merchant
 
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "policies")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 router = APIRouter()
+
+
+@router.post("/upload")
+async def upload_policy(file: UploadFile = File(...)):
+    """Upload a policy PDF/image. Returns the stored filename."""
+    ext = os.path.splitext(file.filename or "doc.pdf")[1]
+    stored_name = f"{uuid.uuid4().hex[:12]}{ext}"
+    path = os.path.join(UPLOAD_DIR, stored_name)
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    return {"filename": stored_name, "size": len(content), "path": f"/uploads/policies/{stored_name}"}
 
 
 @router.post("/register", response_model=VerificationResult)

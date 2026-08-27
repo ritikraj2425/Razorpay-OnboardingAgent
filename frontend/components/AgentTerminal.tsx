@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle, XCircle, AlertCircle, Loader2, Globe, Database, FileSearch, Landmark, Shield, Brain, Key, Cpu, Zap } from "lucide-react";
+import { Check, X, CheckCircle, XCircle, AlertCircle, Loader2, Globe, Database, FileSearch, Landmark, Shield, Brain, Key, Cpu, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AgentStep = {
@@ -10,6 +10,7 @@ export type AgentStep = {
   detail: string;
   duration_ms?: number;
   category?: string;
+  code_snippet?: string;
 };
 
 type StepState = "waiting" | "running" | "done";
@@ -193,9 +194,9 @@ export function AgentTerminal({ steps }: { steps: AgentStep[] }) {
                       ? <Loader2 size={10} className="animate-spin text-blue-400" />
                       : phase === "done"
                         ? step.status === "passed" || step.status === "info"
-                          ? <span className="text-green-400 text-[9px] font-bold">✓</span>
+                          ? <Check size={10} className="text-green-400" />
                           : step.status === "failed"
-                            ? <span className="text-red-400 text-[9px] font-bold">✗</span>
+                            ? <X size={10} className="text-red-400" />
                             : <span className="text-yellow-400 text-[9px] font-bold">!</span>
                         : <span className="text-gray-600 text-[9px]">{i + 1}</span>
                     }

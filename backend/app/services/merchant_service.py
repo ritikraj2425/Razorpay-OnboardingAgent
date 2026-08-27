@@ -21,6 +21,7 @@ from app.services.gstin_service import (
     validate_gstin,
     validate_ifsc,
     validate_pan,
+    validate_llpin,
 )
 from app.services.hash_diff_service import sha256_text
 from app.services.payment_provider_service import activate_payment_provider
@@ -29,18 +30,46 @@ from app.services.website_intel_service import crawl_merchant_site
 from app.workers.scheduler import schedule_initial_rechecks
 
 
-def _step(name: str, status: str, detail: str, duration_ms: int = 0, category: str = "general") -> dict:
+def _step(name: str, status: str, detail: str, duration_ms: int = 0, category: str = "general", code_snippet: str = "") -> dict:
     return {
         "name": name,
         "status": status,
         "detail": detail,
         "duration_ms": duration_ms,
         "category": category,
+        "code_snippet": code_snippet,
     }
 
 
 def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, list[str], list[str], str, list[dict]]:
     steps: list[dict] = []
+
+    # ── STEP 0: Deduplication ──
+    # Check if merchant with same business name or website already exists and delete them to clean up the demo
+    existing = db.query(Merchant).filter(
+        (Merchant.legal_business_name == payload.legal_business_name) | 
+        (Merchant.website_url == str(payload.website_url))
+    ).all()
+    
+    for m in existing:
+        from app.models.audit_log import AuditLog
+        from app.models.recheck_job import RecheckJob
+        from app.models.ad_snapshot import AdSnapshot
+        from app.models.transaction_summary import TransactionSummary
+        from app.models.trust_score import TrustScore
+        
+        db.query(Verification).filter(Verification.merchant_id == m.id).delete()
+        db.query(RiskSignal).filter(RiskSignal.merchant_id == m.id).delete()
+        db.query(AIReport).filter(AIReport.merchant_id == m.id).delete()
+        db.query(HumanReviewCase).filter(HumanReviewCase.merchant_id == m.id).delete()
+        db.query(MerchantSnapshot).filter(MerchantSnapshot.merchant_id == m.id).delete()
+        db.query(AuditLog).filter(AuditLog.merchant_id == m.id).delete()
+        db.query(RecheckJob).filter(RecheckJob.merchant_id == m.id).delete()
+        db.query(AdSnapshot).filter(AdSnapshot.merchant_id == m.id).delete()
+        db.query(TransactionSummary).filter(TransactionSummary.merchant_id == m.id).delete()
+        db.query(TrustScore).filter(TrustScore.merchant_id == m.id).delete()
+        db.delete(m)
+    db.commit()
 
     # ── STEP 1: Entity Registration ──
     t0 = time.time()
@@ -124,12 +153,17 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
     # ── STEP 6: CIN Verification (conditional) ──
     if payload.business_type in ("private_limited", "public_limited", "llp"):
         t0 = time.time()
-        cin_valid, cin_issues = validate_cin(payload.cin)
+        if payload.business_type == "llp":
+            valid, issues = validate_llpin(payload.cin)
+            label = "LLPIN"
+        else:
+            valid, issues = validate_cin(payload.cin)
+            label = "CIN"
         ms = int((time.time() - t0) * 1000) + 100
         steps.append(_step(
-            "CIN Verification",
-            "passed" if cin_valid else ("failed" if cin_issues else "warning"),
-            f"CIN {payload.cin} format valid" if cin_valid and payload.cin else ("; ".join(cin_issues) if cin_issues else f"CIN not provided for {payload.business_type}"),
+            f"{label} Verification",
+            "passed" if valid else ("failed" if issues else "warning"),
+            f"{label} {payload.cin} format valid" if valid and payload.cin else ("; ".join(issues) if issues else f"{label} not provided for {payload.business_type}"),
             ms,
             "kyc",
         ))
@@ -220,12 +254,14 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         steps.append(_step(finding["step"], finding["status"], finding["detail"], 0, "website"))
 
     # ── STEP 12: Content Extraction ──
+    snippet = intel.text.strip()[:600] + ("..." if len(intel.text.strip()) > 600 else "") if intel.text else ""
     steps.append(_step(
         "Content Extraction",
         "passed" if intel.text else "warning",
         f"Extracted {len(intel.text):,} characters from {len(intel.fetched_urls)} URLs · Products: {intel.product_summary[:100]}",
         50,
         "website",
+        code_snippet=snippet,
     ))
 
     # ── STEP 13: Policy Pages Audit ──
@@ -279,8 +315,17 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
 
     # ── Apply Decision ──
     merchant.trust_score = score
+    
+    # Always give 48 hours to fix issues on first onboarding instead of outright rejection
+    if status in ("REJECTED", "MANUAL_REVIEW"):
+        status = "PENDING_REMEDIATION"
+        
     merchant.status = status
     merchant.risk_level = risk
+    
+    if status == "PENDING_REMEDIATION":
+        merchant.remediation_deadline = (datetime.utcnow() + timedelta(hours=48)).isoformat()
+        
     if status == "APPROVED":
         activation = activate_payment_provider(merchant.id)
         merchant.api_key = activation.reference
@@ -319,8 +364,19 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
     memo = "Rule-based checks completed. No LLM call required."
     if status in {"MANUAL_REVIEW", "REJECTED"}:
         t0 = time.time()
+        kyc_summary = (
+            f"Business: {payload.legal_business_name} ({payload.business_type})\n"
+            f"Stakeholder: {payload.stakeholder_name} (PAN: {payload.stakeholder_pan})\n"
+            f"PAN: {payload.pan} | GSTIN: {payload.gst}\n"
+            f"Category: {payload.category}\n"
+            f"Bank: {payload.bank_account} (IFSC: {payload.ifsc})"
+        )
         report = generate_risk_report(
-            payload.legal_business_name, "Day-0 verification", intel.text, str(payload.website_url),
+            merchant_name=payload.legal_business_name,
+            trigger="Day-0 verification",
+            source_text=intel.text,
+            source_url=str(payload.website_url),
+            kyc_data=kyc_summary,
         )
         ms = int((time.time() - t0) * 1000)
         memo = report.underwriter_memo
@@ -344,7 +400,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         steps.append(_step(
             "AI Risk Investigation",
             "flagged" if report.risk_score > 60 else "passed",
-            f"Groq/LLM analysis complete · Risk score: {report.risk_score} · Recommendation: {report.decision_recommendation}",
+            f"Groq/LLM analysis complete · AI Risk Confidence: {report.risk_score}/100 (Lower is safer) · Recommendation: {report.decision_recommendation}",
             ms,
             "ai",
         ))
@@ -358,7 +414,8 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             description=f"Day-0 signal: {reason}",
         ))
     db.commit()
+    schedule_initial_rechecks(db, merchant)
     if status == "APPROVED":
-        schedule_initial_rechecks(db, merchant)
+        pass
     log_event(db, merchant.id, "Decision made", f"{status} with score {score}")
     return merchant, checklist, reasons, memo, steps

@@ -3,7 +3,7 @@ import { ArrowLeft, Globe, Building2, ShieldCheck, Landmark, AlertTriangle, Cloc
 import { Shell } from "@/components/Shell";
 import { Badge, Card, Button, Alert, riskTone, statusTone } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatTimeAgo, formatCurrency } from "@/lib/utils";
+import { cn, formatTimeAgo, formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,11 @@ export default async function MerchantProfile({ params }: { params: Promise<{ id
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Badge tone={statusTone(m.status)} size="sm">{m.status.replace(/_/g, " ")}</Badge>
+              {m.status === "PENDING_REMEDIATION" && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">
+                  48h Grace Period — On Hold (Auto-recheck in 48hrs)
+                </span>
+              )}
               <Badge tone={riskTone(m.risk_level)} size="sm">{m.risk_level?.toUpperCase()} RISK</Badge>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{m.legal_business_name}</h1>
@@ -61,7 +66,11 @@ export default async function MerchantProfile({ params }: { params: Promise<{ id
       </div>
 
       {/* Trust Score hero */}
-      <Card className="mb-6 flex items-center justify-between gap-6">
+      <Card className={cn(
+        "mb-6 flex items-center justify-between gap-6 transition-all",
+        m.status === "REJECTED" && "border-2 border-dashed border-red-300 bg-red-50/30",
+        m.status === "PENDING_REMEDIATION" && "border-2 border-dashed border-amber-300 bg-amber-50/30"
+      )}>
         <div className="flex items-center gap-6">
           <div className="text-center">
             <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Trust Score</div>

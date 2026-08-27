@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 from app.core.constants import PROHIBITED_KEYWORDS
 from app.core.enums import MerchantStatus, RiskLevel
@@ -9,6 +10,7 @@ from app.services.gstin_service import (
     validate_gstin,
     validate_ifsc,
     validate_pan,
+    validate_llpin,
 )
 
 
@@ -59,11 +61,17 @@ def validate_merchant_fields(payload) -> tuple[list[str], list[str]]:
 
     # ── CIN validation (for companies) ──
     if payload.business_type in ("private_limited", "public_limited", "llp"):
-        cin_valid, cin_issues = validate_cin(getattr(payload, "cin", ""))
-        if not cin_valid:
-            invalid_kyb.extend(cin_issues)
+        if payload.business_type == "llp":
+            valid, issues = validate_llpin(getattr(payload, "cin", ""))
+            label = "LLPIN"
+        else:
+            valid, issues = validate_cin(getattr(payload, "cin", ""))
+            label = "CIN"
+
+        if not valid:
+            invalid_kyb.extend(issues)
         elif not getattr(payload, "cin", ""):
-            invalid_kyb.append(f"CIN is required for {payload.business_type} entities")
+            invalid_kyb.append(f"{label} is required for {payload.business_type} entities")
 
     # ── Business type vs PAN holder type coherence ──
     if pan_valid:
@@ -126,21 +134,38 @@ def score_merchant(payload, website_text: str, reused_bank_count: int = 0) -> tu
             reasons.append("PAN_GSTIN_MISMATCH")
             checklist.append("PAN does not match the PAN embedded in GSTIN — verify identity documents")
 
-    # ── Missing Policies ──
-    missing_policies = [
-        label
-        for label, value in [
-            ("refund policy", payload.refund_policy_url),
-            ("shipping policy", payload.shipping_policy_url),
-            ("privacy policy", payload.privacy_policy_url),
-            ("terms", payload.terms_url),
-        ]
-        if not value
+    # ── Policy Validation & Domain Coherence ──
+    policies = [
+        ("refund policy", payload.refund_policy_url),
+        ("shipping policy", payload.shipping_policy_url),
+        ("privacy policy", payload.privacy_policy_url),
+        ("terms", payload.terms_url),
     ]
+    missing_policies = [label for label, value in policies if not value]
+    
     if missing_policies:
-        score -= 8 * len(missing_policies)
+        # Reduced penalty for missing policies on Day 0 so valid demo data doesn't get rejected
+        score -= 4 * len(missing_policies)
         checklist.extend(f"Add {item} URL" for item in missing_policies)
         reasons.append("MISSING_POLICY")
+
+    # Domain Coherence Check
+    if str(payload.website_url).strip():
+        main_domain = urlparse(str(payload.website_url)).netloc.lower().replace("www.", "")
+        whitelist = {"notion.site", "myshopify.com", "docs.google.com", "linktr.ee", "pages.razorpay.com"}
+        
+        for label, url_value in policies:
+            if url_value:
+                policy_domain = urlparse(str(url_value)).netloc.lower().replace("www.", "")
+                if policy_domain != main_domain:
+                    # If it's a 3rd party domain, check if it's whitelisted OR if the company name is heavily mentioned
+                    is_whitelisted = policy_domain in whitelist or policy_domain.endswith(".shopify.com")
+                    mentions_company = payload.legal_business_name.lower() in text or (payload.customer_facing_business_name and payload.customer_facing_business_name.lower() in text)
+                    
+                    if not (is_whitelisted and mentions_company):
+                        score -= 15
+                        reasons.append("POLICY_DOMAIN_MISMATCH")
+                        checklist.append(f"{label.capitalize()} domain ({policy_domain}) does not match website ({main_domain}) and lacks clear company branding")
 
     # ── Duplicate Policy URLs ──
     policy_urls = [

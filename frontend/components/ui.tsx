@@ -9,7 +9,7 @@ const TONE_BADGE: Record<Tone, string> = {
   success: "bg-success-subtle text-green-700 border-green-200",
   warning: "bg-warning-subtle text-amber-700 border-amber-200",
   danger:  "bg-danger-subtle text-red-700 border-red-200",
-  blue:    "bg-accent-subtle text-blue-700 border-blue-200",
+  blue:    "bg-accent-subtle text-rzp-blue border-blue-200",
   purple:  "bg-purple-50 text-purple-700 border-purple-200",
 };
 
@@ -20,8 +20,8 @@ export function Badge({ children, tone = "neutral", size = "sm" }: {
 }) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 rounded-full border font-medium",
-      size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-2 py-0.5 text-[11px]",
+      "inline-flex items-center gap-1 rounded-md border font-medium",
+      size === "sm" ? "px-2 py-0.5 text-xs" : "px-1.5 py-0.5 text-[10px]",
       TONE_BADGE[tone]
     )}>
       {children}
@@ -37,7 +37,7 @@ export function Card({ children, className, padding = true }: {
 }) {
   return (
     <div className={cn(
-      "rounded-2xl bg-white border border-gray-200 shadow-sm",
+      "rounded-xl bg-white border border-gray-200 shadow-xs",
       padding && "p-6",
       className
     )}>
@@ -51,15 +51,15 @@ type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
 type BtnSize = "sm" | "md" | "lg";
 
 const BTN_VARIANT: Record<BtnVariant, string> = {
-  primary:   "bg-gray-900 text-white hover:bg-gray-800 shadow-xs",
+  primary:   "bg-rzp-blue text-white hover:bg-rzp-blue-light shadow-xs",
   secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-xs",
   ghost:     "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
   danger:    "bg-danger text-white hover:opacity-90 shadow-xs",
 };
 const BTN_SIZE: Record<BtnSize, string> = {
   sm: "h-8 px-3 text-sm gap-1.5 rounded-lg",
-  md: "h-10 px-4 text-sm gap-2 rounded-xl",
-  lg: "h-11 px-6 text-[15px] gap-2 rounded-xl",
+  md: "h-10 px-4 text-sm gap-2 rounded-lg",
+  lg: "h-11 px-6 text-[15px] gap-2 rounded-lg",
 };
 
 export function Button({ children, className, variant = "primary", size = "md", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -68,7 +68,7 @@ export function Button({ children, className, variant = "primary", size = "md", 
 }) {
   return (
     <button className={cn(
-      "inline-flex items-center justify-center font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed",
+      "inline-flex items-center justify-center font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-rzp-blue/30 disabled:opacity-50 disabled:cursor-not-allowed",
       BTN_VARIANT[variant],
       BTN_SIZE[size],
       className
@@ -82,10 +82,10 @@ export function Button({ children, className, variant = "primary", size = "md", 
 export function Input({ className, label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
   return (
     <div className="space-y-1.5">
-      {label && <label className="block text-sm font-semibold text-gray-700">{label} {props.required && <span className="text-danger">*</span>}</label>}
+      {label && <label className="block text-sm font-medium text-gray-700">{label} {props.required && <span className="text-danger">*</span>}</label>}
       <input className={cn(
-        "h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 transition",
-        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        "h-10 w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 transition",
+        "focus:outline-none focus:ring-2 focus:ring-rzp-blue/20 focus:border-rzp-blue",
         className
       )} {...props} />
     </div>
@@ -96,10 +96,10 @@ export function Input({ className, label, ...props }: React.InputHTMLAttributes<
 export function Select({ className, label, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) {
   return (
     <div className="space-y-1.5">
-      {label && <label className="block text-sm font-semibold text-gray-700">{label}</label>}
+      {label && <label className="block text-sm font-medium text-gray-700">{label}</label>}
       <select className={cn(
-        "h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 transition",
-        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 transition",
+        "focus:outline-none focus:ring-2 focus:ring-rzp-blue/20 focus:border-rzp-blue",
         className
       )} {...props}>
         {children}
@@ -112,10 +112,10 @@ export function Select({ className, label, children, ...props }: React.SelectHTM
 export function Textarea({ className, label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }) {
   return (
     <div className="space-y-1.5">
-      {label && <label className="block text-sm font-semibold text-gray-700">{label}</label>}
+      {label && <label className="block text-sm font-medium text-gray-700">{label}</label>}
       <textarea className={cn(
-        "w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition resize-none",
-        "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent",
+        "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition resize-none",
+        "focus:outline-none focus:ring-2 focus:ring-rzp-blue/20 focus:border-rzp-blue",
         className
       )} {...props} />
     </div>
@@ -125,7 +125,7 @@ export function Textarea({ className, label, ...props }: React.TextareaHTMLAttri
 /* ── Alert ── */
 type AlertTone = "info" | "success" | "warning" | "error";
 const ALERT: Record<AlertTone, string> = {
-  info:    "bg-accent-subtle border-blue-200 text-blue-800",
+  info:    "bg-accent-subtle border-blue-200 text-rzp-blue",
   success: "bg-success-subtle border-green-200 text-green-800",
   warning: "bg-warning-subtle border-amber-200 text-amber-800",
   error:   "bg-danger-subtle border-red-200 text-red-800",
@@ -133,7 +133,7 @@ const ALERT: Record<AlertTone, string> = {
 
 export function Alert({ children, tone = "info", className }: { children: React.ReactNode; tone?: AlertTone; className?: string }) {
   return (
-    <div className={cn("rounded-xl border px-4 py-3 text-sm font-medium", ALERT[tone], className)}>
+    <div className={cn("rounded-lg border px-4 py-3 text-sm font-medium", ALERT[tone], className)}>
       {children}
     </div>
   );
@@ -147,9 +147,9 @@ export function Stat({ label, value, sub, tone }: {
   tone?: Tone;
 }) {
   return (
-    <Card className="p-5 flex flex-col gap-3">
-      <span className="text-xs font-semibold uppercase tracking-widest text-gray-500">{label}</span>
-      <span className={cn("text-3xl font-bold tabular-nums", tone === "success" && "text-success", tone === "danger" && "text-danger", !tone && "text-gray-900")}>
+    <Card className="p-5 flex flex-col gap-2">
+      <span className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</span>
+      <span className={cn("text-2xl font-bold tabular-nums", tone === "success" && "text-success", tone === "danger" && "text-danger", !tone && "text-gray-900")}>
         {value}
       </span>
       {sub && <span className="text-xs text-gray-400">{sub}</span>}

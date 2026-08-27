@@ -125,6 +125,18 @@ def validate_cin(cin: str) -> tuple[bool, list[str]]:
     return True, []
 
 
+def validate_llpin(llpin: str) -> tuple[bool, list[str]]:
+    """Validate Indian Limited Liability Partnership Identification Number (LLPIN)."""
+    issues: list[str] = []
+    llpin = llpin.strip().upper()
+    if not llpin:
+        return True, []
+    if not re.fullmatch(r"^[A-Z]{3}-[0-9]{4}$", llpin):
+        issues.append("LLPIN format invalid — expected 8-character format like AAA-1234")
+        return False, issues
+    return True, []
+
+
 def validate_ifsc(ifsc: str) -> tuple[bool, list[str], str]:
     """Validate IFSC format and extract bank code. Returns (valid, issues, bank_code)."""
     issues: list[str] = []

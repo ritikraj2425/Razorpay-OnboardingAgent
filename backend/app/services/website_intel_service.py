@@ -1,4 +1,5 @@
 import re
+import asyncio
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
@@ -40,7 +41,7 @@ def _extract_internal_links(base_url: str, html: str, limit: int = 8) -> list[st
     base_host = urlparse(base_url).netloc
     seen: set[str] = set()
     links: list[str] = []
-    priority_words = ("refund", "return", "shipping", "privacy", "terms", "contact", "about", "shop", "product", "catalog")
+    priority_words = ("refund", "return", "shipping", "privacy", "terms", "contact", "about", "shop", "product", "catalog", "course", "pricing")
     for anchor in soup.find_all("a", href=True):
         url = urljoin(base_url, anchor["href"]).split("#")[0]
         parsed = urlparse(url)
@@ -62,7 +63,11 @@ def _looks_like_spa(html: str, text: str) -> bool:
 
 
 def _summarize_products(text: str) -> str:
-    product_words = re.findall(r"\b(?:course|shirt|watch|phone|supplement|tablet|oil|service|plan|kit|bag|shoe|jewellery|jewelry|loan|crypto)\b", text, flags=re.I)
+    product_words = re.findall(
+        r"\b(?:course|program|module|class|webinar|workshop|shirt|watch|phone|supplement|tablet|oil|service|plan|kit|bag|shoe|jewellery|jewelry|loan|crypto|subscription|membership|license|consulting)\b",
+        text,
+        flags=re.I,
+    )
     if not product_words:
         return "No clear product nouns detected from crawled text."
     unique = sorted({word.lower() for word in product_words})
@@ -70,7 +75,7 @@ def _summarize_products(text: str) -> str:
 
 
 def _summarize_prices(text: str) -> str:
-    prices = re.findall(r"(?:₹|Rs\.?|INR)\s?[\d,]+|[\d,]+\s?(?:rupees|INR)", text, flags=re.I)
+    prices = re.findall(r"(?:₹|Rs\.?|INR|\$|USD)\s?[\d,]+|[\d,]+\s?(?:rupees|INR)", text, flags=re.I)
     return ", ".join(prices[:12]) if prices else "No explicit prices detected."
 
 
@@ -94,11 +99,93 @@ def _policy_text(url_text_pairs: list[tuple[str, str]]) -> str:
     return "\n\n".join(policy_chunks) if policy_chunks else "No policy pages were discovered or fetched."
 
 
-def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -> WebsiteIntel:
-    start_url = _normalize_url(website_url)
+# ── Playwright-based dynamic crawler ──
+def _crawl_with_playwright(start_url: str, extra_urls: list[str]) -> WebsiteIntel:
+    """Use Playwright to render JavaScript-heavy sites and extract dynamic content."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return _crawl_with_httpx(start_url, extra_urls)
+
+    fetched: list[tuple[str, str]] = []
+    findings: list[dict[str, str]] = []
+    status_code = 0
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            
+            try:
+                response = page.goto(start_url, wait_until="networkidle", timeout=20000)
+                status_code = response.status if response else 0
+                if status_code in (401, 403):
+                    # Bot protection / WAF blocked us
+                    browser.close()
+                    return WebsiteIntel(
+                        html="", text="[BOT_PROTECTION_BLOCKED]", policy_text="", product_summary="", price_summary="",
+                        support_summary="", is_spa=False, available=True, status_code=status_code, fetched_urls=[],
+                        findings=[{"step": "Website availability", "status": "warning", "detail": f"Site is online but returned HTTP {status_code} (Likely Bot Protection/WAF)"}],
+                    )
+            except Exception as exc:
+                browser.close()
+                raise exc
+
+            homepage_html = page.content()
+            fetched.append((page.url, homepage_html))
+            findings.append({"step": "Playwright render", "status": "info", "detail": "Full JavaScript rendering completed. Dynamic API content captured."})
+
+            # Extract internal links from rendered page
+            candidate_urls = _extract_internal_links(page.url, homepage_html)
+            for url in extra_urls:
+                if url:
+                    candidate_urls.insert(0, _normalize_url(url))
+
+            seen = {page.url}
+            for url in candidate_urls[:8]:
+                if url in seen:
+                    continue
+                seen.add(url)
+                try:
+                    resp = page.goto(url, wait_until="networkidle", timeout=12000)
+                    if resp and resp.status < 400:
+                        fetched.append((page.url, page.content()))
+                    else:
+                        findings.append({"step": "Fetch page", "status": "warning", "detail": f"{url} returned HTTP {resp.status if resp else 'unknown'}"})
+                except Exception as exc:
+                    findings.append({"step": "Fetch page", "status": "warning", "detail": f"{url} could not be fetched: {exc.__class__.__name__}"})
+
+            browser.close()
+    except Exception as exc:
+        findings.append({"step": "Playwright fallback", "status": "warning", "detail": f"Playwright failed ({exc.__class__.__name__}), falling back to httpx."})
+        return _crawl_with_httpx(start_url, extra_urls)
+
+    texts = [(url, _extract_text(html)) for url, html in fetched]
+    combined_text = "\n\n".join(text for _, text in texts if text)
+    combined_html = "\n".join(html for _, html in fetched)
+    is_spa = _looks_like_spa(fetched[0][1], texts[0][1] if texts else "")
+
+    return WebsiteIntel(
+        html=combined_html,
+        text=combined_text[:12000],
+        policy_text=_policy_text(texts),
+        product_summary=_summarize_products(combined_text),
+        price_summary=_summarize_prices(combined_text),
+        support_summary=_summarize_support(combined_text),
+        is_spa=is_spa,
+        available=True,
+        status_code=status_code,
+        fetched_urls=[url for url, _ in fetched],
+        findings=findings,
+    )
+
+
+# ── httpx-based static crawler (fallback) ──
+def _crawl_with_httpx(start_url: str, extra_urls: list[str]) -> WebsiteIntel:
     headers = {
-        "User-Agent": "SentinelPayRiskBot/1.0 (+merchant-risk-audit)",
-        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
     }
     fetched: list[tuple[str, str]] = []
     findings: list[dict[str, str]] = []
@@ -108,11 +195,18 @@ def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -
         with httpx.Client(headers=headers, follow_redirects=True, timeout=12.0) as client:
             response = client.get(start_url)
             status_code = response.status_code
+            if status_code in (401, 403):
+                # Bot protection / WAF blocked us
+                return WebsiteIntel(
+                    html="", text="[BOT_PROTECTION_BLOCKED]", policy_text="", product_summary="", price_summary="",
+                    support_summary="", is_spa=False, available=True, status_code=status_code, fetched_urls=[],
+                    findings=[{"step": "Website availability", "status": "warning", "detail": f"Site is online but returned HTTP {status_code} (Likely Bot Protection/WAF)"}],
+                )
             response.raise_for_status()
             homepage_html = response.text
             fetched.append((str(response.url), homepage_html))
             candidate_urls = _extract_internal_links(str(response.url), homepage_html)
-            for url in extra_urls or []:
+            for url in extra_urls:
                 if url:
                     candidate_urls.insert(0, _normalize_url(url))
             seen = {str(response.url)}
@@ -130,15 +224,8 @@ def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -
                     findings.append({"step": "Fetch page", "status": "warning", "detail": f"{url} could not be fetched: {exc.__class__.__name__}"})
     except httpx.HTTPError as exc:
         return WebsiteIntel(
-            html="",
-            text="",
-            policy_text="",
-            product_summary="",
-            price_summary="",
-            support_summary="",
-            is_spa=False,
-            available=False,
-            status_code=status_code,
+            html="", text="", policy_text="", product_summary="", price_summary="",
+            support_summary="", is_spa=False, available=False, status_code=status_code,
             fetched_urls=[],
             findings=[{"step": "Website availability", "status": "failed", "detail": f"{start_url} could not be fetched: {exc.__class__.__name__}"}],
         )
@@ -148,7 +235,7 @@ def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -
     combined_html = "\n".join(html for _, html in fetched)
     is_spa = _looks_like_spa(fetched[0][1], texts[0][1] if texts else "")
     if is_spa:
-        findings.append({"step": "SPA detection", "status": "warning", "detail": "Homepage appears JavaScript-heavy. Configure Playwright for rendered crawling in production."})
+        findings.append({"step": "SPA detection", "status": "warning", "detail": "Homepage appears JavaScript-heavy. Playwright rendering recommended."})
 
     return WebsiteIntel(
         html=combined_html,
@@ -163,3 +250,28 @@ def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -
         fetched_urls=[url for url, _ in fetched],
         findings=findings,
     )
+
+
+def crawl_merchant_site(website_url: str, extra_urls: list[str] | None = None) -> WebsiteIntel:
+    """Main entry point. Attempts Playwright first, falls back to httpx."""
+    start_url = _normalize_url(website_url)
+    urls = [u for u in (extra_urls or []) if u]
+
+    def do_crawl():
+        # Try Playwright for full JS rendering (catches dynamic API content)
+        try:
+            from playwright.sync_api import sync_playwright
+            return _crawl_with_playwright(start_url, urls)
+        except ImportError:
+            pass
+
+        # Fallback to static httpx crawl
+        return _crawl_with_httpx(start_url, urls)
+
+    intel = do_crawl()
+    if not intel.available or intel.status_code == 0:
+        import time
+        time.sleep(1.0)
+        intel = do_crawl()
+        
+    return intel

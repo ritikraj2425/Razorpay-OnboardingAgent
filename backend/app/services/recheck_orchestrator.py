@@ -42,7 +42,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         [merchant.refund_policy_url, merchant.shipping_policy_url, merchant.privacy_policy_url, merchant.terms_url],
     )
     ms = int((time.time() - t0) * 1000)
-    latest_hash = sha256_text(latest.text)
+    latest_hash = sha256_text(latest.html)
 
     job = RecheckJob(
         merchant_id=merchant_id,
@@ -68,9 +68,11 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
 
     tier_details.append(_tier_step(1, "Website Availability", "passed", f"HTTP {latest.status_code} · {len(latest.fetched_urls)} pages crawled", ms))
 
+    is_spike = "spike" in trigger_reason.lower()
+
     # ── Tier 2: Hash Comparison ──
     t0 = time.time()
-    if baseline and not hash_changed(baseline.html_hash, latest_hash):
+    if not is_spike and baseline and not hash_changed(baseline.html_hash, latest_hash):
         ms = int((time.time() - t0) * 1000) + 20
         tier_details.append(_tier_step(2, "Hash Comparison", "no_change", "SHA-256 hash matches baseline — no content change detected", ms))
         job.tier_reached = 2
@@ -83,7 +85,10 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         return job
 
     ms = int((time.time() - t0) * 1000) + 20
-    tier_details.append(_tier_step(2, "Hash Comparison", "changed", f"SHA-256 mismatch · Baseline: {(baseline.html_hash[:12] + '...') if baseline else 'N/A'} → Latest: {latest_hash[:12]}...", ms))
+    if is_spike:
+        tier_details.append(_tier_step(2, "Hash Comparison", "warning", f"Bypassing hash check due to anomalous event (Spike detected)", ms))
+    else:
+        tier_details.append(_tier_step(2, "Hash Comparison", "changed", f"SHA-256 mismatch · Baseline: {(baseline.html_hash[:12] + '...') if baseline else 'N/A'} → Latest: {latest_hash[:12]}...", ms))
 
     # ── Tier 3: Semantic Drift Analysis ──
     t0 = time.time()
@@ -104,7 +109,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         )
     )
 
-    if distance < 0.10:
+    if not is_spike and distance < 0.10:
         tier_details.append(_tier_step(3, "Semantic Drift Analysis", "benign", f"Cosine distance {distance:.3f} — negligible drift, likely formatting changes", ms))
         job.tier_reached = 3
         job.status = "COMPLETED"
@@ -112,7 +117,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         job.cost_saved = 0.05
         job.tier_details = json.dumps(tier_details)
         log_event(db, merchant_id, "Vector diff result", job.result_summary)
-    elif distance < 0.25:
+    elif not is_spike and distance < 0.25:
         tier_details.append(_tier_step(3, "Semantic Drift Analysis", "warning", f"Cosine distance {distance:.3f} — moderate drift, watchlist recommended", ms))
         job.tier_reached = 3
         job.status = "WATCHLIST"
@@ -120,21 +125,54 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
         job.tier_details = json.dumps(tier_details)
         db.add(RiskSignal(merchant_id=merchant_id, level="medium", source="vector_diff", reason_code="MODERATE_DRIFT", description=job.result_summary))
     else:
-        tier_details.append(_tier_step(3, "Semantic Drift Analysis", "escalated", f"Cosine distance {distance:.3f} — significant content change detected, escalating to AI", ms))
+        detail_msg = f"Cosine distance {distance:.3f} — significant content change detected, escalating to AI"
+        if is_spike:
+            detail_msg = f"Forced AI escalation due to event trigger (Spike detected)"
+            
+        tier_details.append(_tier_step(3, "Semantic Drift Analysis", "escalated", detail_msg, ms))
 
         # ── Tier 4: AI Deep Investigation ──
         t0 = time.time()
-        report = generate_risk_report(merchant.legal_business_name, trigger_reason, latest.text, merchant.website_url)
+        kyc_summary = (
+            f"Business: {merchant.legal_business_name} ({merchant.business_type})\n"
+            f"Stakeholder: {merchant.stakeholder_name} (PAN: {merchant.stakeholder_pan})\n"
+            f"PAN: {merchant.pan} | GSTIN: {merchant.gst}\n"
+            f"Category: {merchant.category}\n"
+            f"Bank: {merchant.bank_account} (IFSC: {merchant.ifsc})"
+        )
+        report = generate_risk_report(
+            merchant_name=merchant.legal_business_name,
+            trigger=trigger_reason,
+            source_text=latest.text,
+            source_url=str(merchant.website_url),
+            kyc_data=kyc_summary,
+        )
         ms = int((time.time() - t0) * 1000)
         tier_details.append(_tier_step(4, "AI Deep Investigation", "flagged" if report.risk_score > 60 else "cleared", f"LLM risk score: {report.risk_score} · Recommendation: {report.decision_recommendation} · {len(report.evidence)} evidence items", ms))
 
         job.tier_reached = 4
         job.status = "AI_REVIEW"
         job.result_summary = f"Tier 4 AI report generated. Risk: {report.risk_level}. Recommendation: {report.decision_recommendation}."
-        merchant.risk_level = report.risk_level
-        merchant.status = "RESTRICTED" if report.risk_level in {"high", "critical"} else merchant.status
+        merchant.trust_score = min(merchant.trust_score, max(0, 100 - report.risk_score))
+        
+        # Enforce consistent risk level based on trust score
+        if merchant.trust_score >= 85:
+            merchant.risk_level = "low"
+        elif merchant.trust_score >= 60:
+            merchant.risk_level = "medium"
+        elif merchant.trust_score >= 40:
+            merchant.risk_level = "high"
+        else:
+            merchant.risk_level = "critical"
+            
+        merchant.status = "RESTRICTED" if merchant.risk_level in {"high", "critical"} else merchant.status
+        # ── Grace Period Auto-Rejection ──
+        if trigger_reason == "Grace period expired" and merchant.trust_score < 85:
+            merchant.status = "REJECTED"
+            job.result_summary += " Grace period expired with score < 85. Application Rejected."
+            db.add(RiskSignal(merchant_id=merchant_id, level="critical", source="scheduler", reason_code="GRACE_PERIOD_FAILED", description="Failed to remediate within 48h."))
         merchant.payout_limit = lower_payout_limit(merchant.payout_limit, report.risk_level)
-        db.add(RiskSignal(merchant_id=merchant_id, level=report.risk_level, source="llm", reason_code="HIGH_SEMANTIC_DRIFT", description=job.result_summary))
+        db.add(RiskSignal(merchant_id=merchant_id, level=report.risk_level, source="llm", reason_code="HIGH_RISK_SPIKE", description=job.result_summary))
         db.add(
             AIReport(
                 merchant_id=merchant_id,

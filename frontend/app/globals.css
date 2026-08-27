@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,74 +6,87 @@
 
 :root {
   color-scheme: light;
-  --bg: #F6F7F9;
-  --surface: #FFFFFF;
-  --border: #E4E7EC;
-  --text-primary: #101828;
-  --text-secondary: #667085;
-  --accent: #0066FF;
-  --accent-subtle: #EFF4FF;
-  --success: #12B76A;
-  --success-subtle: #ECFDF3;
-  --warning: #F79009;
-  --warning-subtle: #FFFAEB;
-  --danger: #F04438;
-  --danger-subtle: #FEF3F2;
+  /* Razorpay-inspired palette */
+  --rzp-navy: #02042b;
+  --rzp-blue: #2b6add;
+  --rzp-blue-light: #528ff0;
+  --rzp-blue-subtle: #e8f0fe;
+  --rzp-teal: #1ca774;
+  --rzp-teal-subtle: #ecfdf3;
+  --rzp-orange: #f26522;
+  --rzp-red: #e5383b;
+  --rzp-red-subtle: #fef3f2;
+  --rzp-yellow: #f5a623;
+  --rzp-yellow-subtle: #fffaeb;
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --border: #e0e4ea;
+  --text-primary: #0d1117;
+  --text-secondary: #57606a;
+  --text-tertiary: #8b949e;
 }
 
 * { box-sizing: border-box; }
 
-html { font-family: 'DM Sans', system-ui, sans-serif; }
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
 body {
   background: var(--bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Monospace for technical values */
-.mono { font-family: 'DM Mono', 'Fira Code', monospace; }
+.mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
 
-::selection { background: #C7D7FE; color: #101828; }
+::selection { background: #c7d7fe; color: #0d1117; }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D0D5DD; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #98A2B3; }
+::-webkit-scrollbar-thumb { background: #d0d5dd; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #98a2b3; }
 
-/* Terminal / agent output */
+/* Animations */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
-
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-@keyframes expandWidth {
-  from { width: 0; }
-  to   { width: 100%; }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-
 @keyframes pulse-dot {
   0%, 100% { transform: scale(1); opacity: 1; }
   50%       { transform: scale(1.4); opacity: 0.6; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes drawLine {
+  from { height: 0; }
+  to   { height: 100%; }
 }
 
 .animate-blink { animation: blink 1s step-end infinite; }
 .animate-slide-down { animation: slideDown 0.3s ease forwards; }
 .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-fade-in { animation: fadeIn 0.5s ease forwards; }
 .animate-pulse-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
-
-/* Line draw for pipeline connector */
-@keyframes drawLine {
-  from { height: 0; }
-  to   { height: 100%; }
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(43,106,221,0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
 }
 .animate-draw { animation: drawLine 0.5s ease forwards; }
