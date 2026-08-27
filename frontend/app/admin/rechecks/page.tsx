@@ -49,15 +49,15 @@ export default function RechecksPage() {
       {/* 4-Tier overview */}
       <div className="grid grid-cols-4 gap-4 mb-10">
         {[
-          { tier: 1, label: "Hash Check", desc: "Content fingerprint comparison", schedule: "All merchants" },
-          { tier: 2, label: "Semantic Diff", desc: "Meaning-level change detection", schedule: "Medium+ risk" },
-          { tier: 3, label: "LLM Analysis", desc: "AI-powered risk investigation", schedule: "High+ risk" },
-          { tier: 4, label: "Auto Action", desc: "Restrict payouts, flag for review", schedule: "Critical risk" },
+          { tier: 1, label: "Hash Check", desc: "Content fingerprint comparison", schedule: "All merchants", bg: "bg-gradient-to-br from-teal-50/50 to-white" },
+          { tier: 2, label: "Semantic Diff", desc: "Meaning-level change detection", schedule: "Medium+ risk", bg: "bg-gradient-to-br from-yellow-50/50 to-white" },
+          { tier: 3, label: "LLM Analysis", desc: "AI-powered risk investigation", schedule: "High+ risk", bg: "bg-gradient-to-br from-orange-50/50 to-white" },
+          { tier: 4, label: "Auto Action", desc: "Restrict payouts, flag for review", schedule: "Critical risk", bg: "bg-gradient-to-br from-red-50/50 to-white" },
         ].map(t => (
-          <div key={t.tier} className="bg-white rounded-xl border border-gray-200 p-5">
+          <div key={t.tier} className={`group rounded-2xl border border-gray-100 p-6 hover:shadow-md transition-all ${t.bg}`}>
             <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600">{t.tier}</div>
-              <span className="text-sm font-bold text-gray-900">{t.label}</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 border border-black/5 text-xs font-bold text-gray-700">{t.tier}</div>
+              <span className="text-sm font-bold text-gray-900 group-hover:text-[#649e9c] transition">{t.label}</span>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed">{t.desc}</p>
             <p className="text-[10px] text-gray-400 font-medium mt-2 uppercase tracking-wider">{t.schedule}</p>
@@ -120,11 +120,17 @@ export default function RechecksPage() {
 
                 {/* Footer details */}
                 <div className="pt-4 border-t border-[#649e9c]/10">
-                  <p className="text-xs text-gray-500 mb-2 leading-relaxed">
-                    Last run was on <span className="font-semibold text-gray-700">{formatDate(job.last_checked_at)}</span>. 
-                    Risk was <span className="font-semibold text-gray-700">{job.risk_level}</span>, so next check is {nextCheckLabel(job.next_check_due).toLowerCase()}.
-                    {isHighRisk && <span className="text-red-500 font-semibold block mt-1">Admin has been informed.</span>}
-                  </p>
+                  {job.merchant_status === "PENDING_REMEDIATION" ? (
+                    <p className="text-xs text-amber-600 mb-2 leading-relaxed font-medium">
+                      On hold. Awaiting merchant updates. 48-hour grace period ends <span className="font-bold">{formatDate(job.merchant_remediation_deadline)}</span>.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                      Last run was on <span className="font-semibold text-gray-700">{formatDate(job.last_checked_at)}</span>. 
+                      Risk was <span className="font-semibold text-gray-700">{job.risk_level}</span>, so next check is {nextCheckLabel(job.next_check_due).toLowerCase()}.
+                      {isHighRisk && <span className="text-red-500 font-semibold block mt-1">Admin has been informed.</span>}
+                    </p>
+                  )}
                 </div>
               </Link>
             );

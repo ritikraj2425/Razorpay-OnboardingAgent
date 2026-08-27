@@ -23,6 +23,8 @@ def serialize_job(db: Session, job: RecheckJob):
         "id": job.id,
         "merchant_id": job.merchant_id,
         "merchant_name": merchant.legal_business_name if merchant else "Unknown",
+        "merchant_status": merchant.status if merchant else "Unknown",
+        "merchant_remediation_deadline": merchant.remediation_deadline if merchant else None,
         "risk_level": merchant.risk_level if merchant else "medium",
         "trigger_reason": job.trigger_reason,
         "tier_reached": job.tier_reached,
