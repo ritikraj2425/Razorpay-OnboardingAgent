@@ -2,12 +2,12 @@ import Link from "next/link";
 import { PlusCircle, Globe, ExternalLink, ArrowRight } from "lucide-react";
 import { Shell } from "@/components/Shell";
 import { Badge, Card, riskTone, statusTone } from "@/components/ui";
-import { getMerchants, getMetrics } from "@/lib/api";
+import { getMerchants, getMetrics, Merchant } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function MerchantsPage() {
-  let merchants = [];
+  let merchants: Merchant[] = [];
   let metrics = {
     total_merchants: 0,
     approved_merchants: 0,

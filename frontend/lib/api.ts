@@ -56,6 +56,8 @@ export type RecheckJob = {
   id: number;
   merchant_id: number;
   merchant_name: string;
+  merchant_status: string;
+  merchant_remediation_deadline: string | null;
   risk_level: string;
   trigger_reason: string;
   tier_reached: number;
