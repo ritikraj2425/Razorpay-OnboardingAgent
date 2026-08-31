@@ -7,7 +7,8 @@ import { Shell } from "@/components/Shell";
 import { Badge, riskTone } from "@/components/ui";
 import { api, RecheckJob } from "@/lib/api";
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return "N/A";
   try {
     return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   } catch { return iso; }
