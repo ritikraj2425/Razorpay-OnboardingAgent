@@ -33,7 +33,7 @@ export default async function MerchantsPage() {
           </div>
           <div>
             <h3 className="text-sm font-bold">Backend Connection Failed</h3>
-            <p className="text-xs mt-0.5 opacity-90">Cannot connect to the SentinelPay API server. Please ensure the backend is running on port 8000.</p>
+            <p className="text-xs mt-0.5 opacity-90">Cannot connect to the SentinelPay API server. It might be sleeping on Render or offline.</p>
           </div>
         </div>
       )}
