@@ -8,9 +8,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install playwright chromium binary safely via Python module
-RUN python -m playwright install chromium
-
 # Copy the rest of the application code
 COPY . .
 
