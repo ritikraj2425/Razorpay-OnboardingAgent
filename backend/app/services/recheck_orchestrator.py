@@ -44,10 +44,15 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
     ms = int((time.time() - t0) * 1000)
     latest_hash = sha256_text(latest.html)
 
+    cadence = 30
+    if merchant.risk_level in ("critical", "high"): cadence = 1
+    elif merchant.risk_level == "medium": cadence = 7
+
     job = RecheckJob(
         merchant_id=merchant_id,
         trigger_reason=trigger_reason,
-        next_check_due=(datetime.utcnow() + timedelta(days=7)).isoformat(),
+        next_check_due=(datetime.utcnow() + timedelta(days=cadence)).isoformat(),
+        last_checked_at=datetime.utcnow(),
     )
     db.add(job)
     db.commit()
@@ -68,7 +73,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
 
     tier_details.append(_tier_step(1, "Website Availability", "passed", f"HTTP {latest.status_code} · {len(latest.fetched_urls)} pages crawled", ms))
 
-    is_spike = "spike" in trigger_reason.lower()
+    is_spike = "spike" in trigger_reason.lower() or "event" in trigger_reason.lower() or "grace period" in trigger_reason.lower()
 
     # ── Tier 2: Hash Comparison ──
     t0 = time.time()
@@ -166,11 +171,7 @@ def run_recheck(db: Session, merchant_id: int, trigger_reason: str) -> RecheckJo
             merchant.risk_level = "critical"
             
         merchant.status = "RESTRICTED" if merchant.risk_level in {"high", "critical"} else merchant.status
-        # ── Grace Period Auto-Rejection ──
-        if trigger_reason == "Grace period expired" and merchant.trust_score < 85:
-            merchant.status = "REJECTED"
-            job.result_summary += " Grace period expired with score < 85. Application Rejected."
-            db.add(RiskSignal(merchant_id=merchant_id, level="critical", source="scheduler", reason_code="GRACE_PERIOD_FAILED", description="Failed to remediate within 48h."))
+        merchant.status = "RESTRICTED" if merchant.risk_level in {"high", "critical"} else merchant.status
         merchant.payout_limit = lower_payout_limit(merchant.payout_limit, report.risk_level)
         db.add(RiskSignal(merchant_id=merchant_id, level=report.risk_level, source="llm", reason_code="HIGH_RISK_SPIKE", description=job.result_summary))
         db.add(

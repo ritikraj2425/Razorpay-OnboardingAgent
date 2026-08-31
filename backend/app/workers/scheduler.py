@@ -104,8 +104,20 @@ def process_grace_periods() -> None:
             except ValueError:
                 continue
             if deadline <= now:
-                # Trigger a forced recheck. The recheck orchestrator will reject if score < 85
-                run_recheck(db, merchant.id, "Grace period expired")
+                # Trigger a forced recheck to evaluate them
+                job = run_recheck(db, merchant.id, "Grace period expired")
+                
+                # Check the resulting trust score to make the final decision
+                if merchant.trust_score < 85:
+                    merchant.status = "REJECTED"
+                    job.result_summary = str(job.result_summary) + " Grace period expired with score < 85. Application Rejected."
+                    from app.models.risk_signal import RiskSignal
+                    db.add(RiskSignal(merchant_id=merchant.id, level="critical", source="scheduler", reason_code="GRACE_PERIOD_FAILED", description="Failed to remediate within 48h."))
+                else:
+                    merchant.status = "APPROVED"
+                    job.result_summary = str(job.result_summary) + " Grace period remediation successful. Application Approved."
+                    
+                db.commit()
     finally:
         db.close()
 
