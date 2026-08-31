@@ -1,7 +1,7 @@
-from enum import StrEnum
+from enum import Enum
 
 
-class MerchantStatus(StrEnum):
+class MerchantStatus(str, Enum):
     APPROVED = "APPROVED"
     PENDING_REMEDIATION = "PENDING_REMEDIATION"
     MANUAL_REVIEW = "MANUAL_REVIEW"
@@ -9,14 +9,14 @@ class MerchantStatus(StrEnum):
     RESTRICTED = "RESTRICTED"
 
 
-class RiskLevel(StrEnum):
+class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class RecheckStatus(StrEnum):
+class RecheckStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     NO_CHANGE = "NO_CHANGE"
