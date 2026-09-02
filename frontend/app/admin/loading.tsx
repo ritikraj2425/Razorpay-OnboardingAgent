@@ -1,7 +1,19 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { RefreshCw, ServerCog } from "lucide-react";
 
 export default function Loading() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 800);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!show) return null;
+
   return (
     <Shell>
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in-95 duration-500">

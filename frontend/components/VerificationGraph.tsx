@@ -40,7 +40,10 @@ export function VerificationGraph({ steps, onComplete, isRunning }: { steps: Age
       }
       setAnimStep(step);
       if (containerRef.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        const list = containerRef.current.firstElementChild;
+        if (list && list.children[step]) {
+          list.children[step].scrollIntoView({ behavior: "smooth", block: "center" });
+        }
       }
     }, 1200); // Slower for reading outputs
     return () => clearInterval(iv);

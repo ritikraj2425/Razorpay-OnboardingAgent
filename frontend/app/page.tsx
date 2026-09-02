@@ -38,7 +38,10 @@ export default function LandingPage() {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <a href="https://github.com/ritikraj2425/Razorpay-OnboardingAgent" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-gray-900 transition">
+              <svg xmlns="http://www.开展w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.02c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A4.37 4.37 0 0 0 9 18v4"></path><path d="M12 22v-4"></path></svg>
+            </a>
             <button
               onClick={() => router.push("/admin")}
               className="rounded-full bg-[#3d4b47] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c3733] transition"
@@ -59,6 +62,16 @@ export default function LandingPage() {
         <p className="mt-8 text-lg text-gray-500 font-medium max-w-xl mx-auto leading-relaxed">
           One secure API for real-time web access, KYC validation, and autonomous risk monitoring.
         </p>
+
+        <div className="mt-6 flex justify-center">
+          <Link href="/mcp" className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 shadow-sm hover:bg-purple-100 transition cursor-pointer">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+            </span>
+            MCP Enabled
+          </Link>
+        </div>
 
         <div className="flex items-center justify-center gap-4 mt-10">
           <button
@@ -84,7 +97,7 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-8 pb-24 relative z-10">
         <div className="rounded-2xl border border-[#e8e9e6] bg-[#f5f6f4] shadow-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e8e9e6] flex items-center gap-4">
-            <span className="text-sm font-semibold text-gray-800">hii</span>
+            <span className="text-sm font-semibold text-gray-800">integration_example.py</span>
             <div className="ml-auto flex gap-2">
               <span className="px-3 py-1 rounded-full bg-[#41433f] text-xs font-semibold text-white">extract</span>
               <span className="px-3 py-1 rounded-full bg-[#e6e7e4] text-xs font-semibold text-gray-500">crawl</span>
