@@ -211,10 +211,25 @@ export default function RegisterPage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setResult(res);
+      
+      let currentRes = res;
+      setResult(currentRes);
+      
+      let isProcessing = true;
+      let merchantId = res.merchant?.id;
+
+      while (isProcessing && merchantId) {
+        await new Promise((r) => setTimeout(r, 2000));
+        currentRes = await api<VerificationResult>(`/api/merchants/${merchantId}/status`);
+        setResult(currentRes);
+        if (currentRes.decision !== "PROCESSING") {
+          isProcessing = false;
+        }
+      }
+      
+      setLoading(false);
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };

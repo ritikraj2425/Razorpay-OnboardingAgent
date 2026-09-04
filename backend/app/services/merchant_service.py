@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import datetime, timedelta
 
@@ -41,11 +42,8 @@ def _step(name: str, status: str, detail: str, duration_ms: int = 0, category: s
     }
 
 
-def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, list[str], list[str], str, list[dict]]:
-    steps: list[dict] = []
-
+def create_merchant(db: Session, payload: MerchantCreate) -> Merchant:
     # ── STEP 0: Deduplication ──
-    # Check if merchant with same business name or website already exists and delete them to clean up the demo
     existing = db.query(Merchant).filter(
         (Merchant.legal_business_name == payload.legal_business_name) | 
         (Merchant.website_url == str(payload.website_url))
@@ -72,42 +70,63 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
     db.commit()
 
     # ── STEP 1: Entity Registration ──
-    t0 = time.time()
     merchant_data = payload.model_dump(exclude={"documents"}, mode="json")
     merchant_data["documents"] = ",".join(payload.documents) if payload.documents else ""
     merchant = Merchant(**merchant_data)
+    merchant.status = "PROCESSING"
     db.add(merchant)
     db.commit()
     db.refresh(merchant)
+    
     log_event(db, merchant.id, "Merchant registered", "Day-0 verification queued")
-    ms = int((time.time() - t0) * 1000)
+
+    # ── STEP 2: Document Intake ──
+    for filename in payload.documents:
+        db.add(MerchantDocument(merchant_id=merchant.id, document_type="kyb", filename=filename))
+    db.commit()
+    
+    # Queue Celery task
+    from app.workers.celery_worker import process_onboarding
+    process_onboarding.delay(merchant.id, payload.model_dump(mode="json"))
+
+    return merchant
+
+
+def process_onboarding_pipeline(db: Session, merchant_id: int, payload_dict: dict):
+    payload = MerchantCreate(**payload_dict)
+    merchant = db.get(Merchant, merchant_id)
+    if not merchant:
+        return
+
+    steps: list[dict] = []
+    
     steps.append(_step(
         "Entity Registration",
         "passed",
         f"Merchant ID #{merchant.id} created · Business type: {payload.business_type.replace('_', ' ').title()} · Legal name: {payload.legal_business_name}",
-        ms,
+        100,
         "registration",
     ))
-
-    # ── STEP 2: Document Intake ──
-    t0 = time.time()
-    for filename in payload.documents:
-        db.add(MerchantDocument(merchant_id=merchant.id, document_type="kyb", filename=filename))
-    db.commit()
-    ms = int((time.time() - t0) * 1000)
     steps.append(_step(
         "Document Intake",
         "passed" if payload.documents else "warning",
         f"{len(payload.documents)} document references received: {', '.join(payload.documents[:5]) or 'None'}",
-        ms,
+        50,
         "documents",
     ))
+    
+    merchant.onboarding_steps = json.dumps(steps)
+    db.commit()
+
+    def _save_steps():
+        merchant.onboarding_steps = json.dumps(steps)
+        db.commit()
 
     # ── STEP 3: PAN Verification ──
     t0 = time.time()
     pan_valid, pan_issues = validate_pan(payload.pan)
     holder_type = get_pan_holder_type(payload.pan) if pan_valid else "Unknown"
-    ms = int((time.time() - t0) * 1000) + 120  # Simulated API latency
+    ms = int((time.time() - t0) * 1000) + 120
     steps.append(_step(
         "PAN Verification",
         "passed" if pan_valid else "failed",
@@ -115,6 +134,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "kyc",
     ))
+    _save_steps()
 
     # ── STEP 4: GSTIN Verification ──
     t0 = time.time()
@@ -128,6 +148,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "kyc",
     ))
+    _save_steps()
 
     # ── STEP 5: PAN-GSTIN Cross-Match ──
     t0 = time.time()
@@ -149,6 +170,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             10,
             "kyc",
         ))
+    _save_steps()
 
     # ── STEP 6: CIN Verification (conditional) ──
     if payload.business_type in ("private_limited", "public_limited", "llp"):
@@ -167,6 +189,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             ms,
             "kyc",
         ))
+        _save_steps()
 
     # ── STEP 7: Stakeholder KYC ──
     t0 = time.time()
@@ -191,6 +214,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             10,
             "kyc",
         ))
+    _save_steps()
 
     # ── STEP 8: Bank Account Verification ──
     t0 = time.time()
@@ -206,6 +230,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "banking",
     ))
+    _save_steps()
 
     # ── STEP 9: Bank Reuse Detection ──
     t0 = time.time()
@@ -218,6 +243,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "banking",
     ))
+    _save_steps()
 
     # ── STEP 10: Policy URL Differentiation ──
     t0 = time.time()
@@ -235,6 +261,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "compliance",
     ))
+    _save_steps()
 
     # ── STEP 11: Website Crawl & Compliance Audit ──
     t0 = time.time()
@@ -252,6 +279,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
     ))
     for finding in intel.findings:
         steps.append(_step(finding["step"], finding["status"], finding["detail"], 0, "website"))
+    _save_steps()
 
     # ── STEP 12: Content Extraction ──
     snippet = intel.text.strip()[:600] + ("..." if len(intel.text.strip()) > 600 else "") if intel.text else ""
@@ -281,6 +309,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         30,
         "compliance",
     ))
+    _save_steps()
 
     # ── STEP 15: Prohibited Content Scan ──
     t0 = time.time()
@@ -294,6 +323,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "risk",
     ))
+    _save_steps()
 
     # ── STEP 16: Trust Scoring ──
     t0 = time.time()
@@ -312,11 +342,11 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ms,
         "decision",
     ))
+    _save_steps()
 
     # ── Apply Decision ──
     merchant.trust_score = score
     
-    # Always give 48 hours to fix issues on first onboarding instead of outright rejection
     if status in ("REJECTED", "MANUAL_REVIEW"):
         status = "PENDING_REMEDIATION"
         
@@ -336,8 +366,6 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             180,
             "activation",
         ))
-    if status == "PENDING_REMEDIATION":
-        merchant.remediation_deadline = (datetime.utcnow() + timedelta(hours=48)).isoformat()
     db.commit()
 
     # ── Store Snapshot ──
@@ -359,10 +387,11 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         checklist="|".join(checklist),
         reason_codes="|".join(reasons),
     ))
+    db.commit()
 
     # ── AI Report (if needed) ──
     memo = "Rule-based checks completed. No LLM call required."
-    if status in {"MANUAL_REVIEW", "REJECTED"}:
+    if status in {"MANUAL_REVIEW", "REJECTED", "PENDING_REMEDIATION"} and score < 85:
         t0 = time.time()
         kyc_summary = (
             f"Business: {payload.legal_business_name} ({payload.business_type})\n"
@@ -404,6 +433,7 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
             ms,
             "ai",
         ))
+        _save_steps()
 
     for reason in reasons:
         db.add(RiskSignal(
@@ -415,7 +445,13 @@ def create_merchant(db: Session, payload: MerchantCreate) -> tuple[Merchant, lis
         ))
     db.commit()
     schedule_initial_rechecks(db, merchant)
-    if status == "APPROVED":
-        pass
     log_event(db, merchant.id, "Decision made", f"{status} with score {score}")
-    return merchant, checklist, reasons, memo, steps
+
+    from app.workers.pika_publisher import publish_notification
+    publish_notification("ONBOARDING_STATUS_CHANGED", {
+        "id": merchant.id,
+        "name": merchant.legal_business_name,
+        "status": merchant.status,
+        "score": merchant.trust_score,
+        "email": merchant.support_email
+    })

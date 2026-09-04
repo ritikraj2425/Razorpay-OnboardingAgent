@@ -35,6 +35,7 @@ export default function LandingPage() {
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/admin" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition">Dashboard</Link>
             <Link href="/admin/rechecks" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition">Rechecks</Link>
+            <Link href="/architecture" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition">Architecture</Link>
           </nav>
 
           {/* Actions */}

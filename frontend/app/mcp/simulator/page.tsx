@@ -59,14 +59,24 @@ export default function SimulatorPage() {
       toolStatus: "running"
     }]);
 
-    // 4. API Request
+    // 4. API Request & Polling
     try {
       const response = await api<any>("/api/merchants/register", {
         method: "POST",
         body: JSON.stringify(payload)
       });
       
-      await new Promise((r) => setTimeout(r, 1500));
+      let currentResponse = response;
+      let isProcessing = true;
+      let merchantId = response.merchant?.id;
+
+      while (isProcessing && merchantId) {
+        await new Promise((r) => setTimeout(r, 3000));
+        currentResponse = await api<any>(`/api/merchants/${merchantId}/status`);
+        if (currentResponse.decision !== "PROCESSING") {
+          isProcessing = false;
+        }
+      }
 
       setMessages((m) => {
         const updated = [...m];
@@ -75,18 +85,18 @@ export default function SimulatorPage() {
           ...updated,
           { 
             role: "assistant", 
-            content: `Successfully onboarded the merchant! The AI system assigned Merchant ID: ${response.merchant?.id || "N/A"}.
+            content: `Successfully onboarded the merchant! The AI system assigned Merchant ID: ${currentResponse.merchant?.id || "N/A"}.
 
 **Onboarding Results:**
-- **Decision:** ${response.decision || "N/A"}
-- **Trust Score:** ${response.score || "N/A"}/100
-- **Risk Level:** ${response.risk_level || "N/A"}
+- **Decision:** ${currentResponse.decision || "N/A"}
+- **Trust Score:** ${currentResponse.score || "N/A"}/100
+- **Risk Level:** ${currentResponse.risk_level || "N/A"}
 
 **AI Analysis Details:**
-${response.steps && response.steps.length > 0 ? response.steps.map((s: any) => `- **${s.name}**: ${s.detail}`).join("\n") : "- None"}
+${currentResponse.steps && currentResponse.steps.length > 0 ? currentResponse.steps.map((s: any) => `- **${s.name}**: ${s.detail}`).join("\n") : "- None"}
 
 **Risk Signals:**
-${response.reason_codes && response.reason_codes.length > 0 ? response.reason_codes.map((c: string) => `- ${c}`).join("\n") : "- None"}
+${currentResponse.reason_codes && currentResponse.reason_codes.length > 0 ? currentResponse.reason_codes.map((c: string) => `- ${c}`).join("\n") : "- None"}
 
 You can view the full deep-dive analysis in the SentinelPay dashboard.`
           }

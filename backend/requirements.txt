@@ -12,3 +12,5 @@ playwright>=1.40.0
 
 mcp
 httpx
+celery
+pika

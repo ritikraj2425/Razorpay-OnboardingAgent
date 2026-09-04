@@ -70,4 +70,5 @@ class Merchant(Base):
     remediation_deadline: Mapped[str] = mapped_column(String(40), default="")
     api_key: Mapped[str] = mapped_column(String(80), default="")
     payout_limit: Mapped[float] = mapped_column(Float, default=100000)
+    onboarding_steps: Mapped[str] = mapped_column(Text, default="[]")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
