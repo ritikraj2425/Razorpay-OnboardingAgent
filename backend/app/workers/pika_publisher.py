@@ -3,7 +3,9 @@ import json
 import pika
 
 def publish_notification(event_type: str, merchant_data: dict):
-    broker_url = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
+    broker_url = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672/")
+    if broker_url.endswith("//"):
+        broker_url = broker_url[:-1]
     try:
         params = pika.URLParameters(broker_url)
         connection = pika.BlockingConnection(params)

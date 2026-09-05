@@ -346,10 +346,6 @@ def process_onboarding_pipeline(db: Session, merchant_id: int, payload_dict: dic
 
     # ── Apply Decision ──
     merchant.trust_score = score
-    
-    if status in ("REJECTED", "MANUAL_REVIEW"):
-        status = "PENDING_REMEDIATION"
-        
     merchant.status = status
     merchant.risk_level = risk
     

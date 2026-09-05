@@ -7,7 +7,6 @@ import { Shield, LogOut } from "lucide-react";
 const NAV = [
   { href: "/admin", label: "Merchants" },
   { href: "/admin/rechecks", label: "Rechecks" },
-  { href: "/architecture", label: "Architecture" },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
