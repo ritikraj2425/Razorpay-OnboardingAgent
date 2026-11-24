@@ -74,6 +74,25 @@ def create_merchant(db: Session, payload: MerchantCreate) -> Merchant:
     merchant_data["documents"] = ",".join(payload.documents) if payload.documents else ""
     merchant = Merchant(**merchant_data)
     merchant.status = "PROCESSING"
+    
+    initial_steps = [
+        _step(
+            "Entity Registration",
+            "passed",
+            f"Business type: {payload.business_type.replace('_', ' ').title()} · Legal name: {payload.legal_business_name}",
+            100,
+            "registration",
+        ),
+        _step(
+            "Document Intake",
+            "passed" if payload.documents else "warning",
+            f"{len(payload.documents)} document references received",
+            50,
+            "documents",
+        )
+    ]
+    merchant.onboarding_steps = json.dumps(initial_steps)
+    
     db.add(merchant)
     db.commit()
     db.refresh(merchant)
