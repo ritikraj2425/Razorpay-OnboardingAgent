@@ -104,9 +104,18 @@ def create_merchant(db: Session, payload: MerchantCreate) -> Merchant:
         db.add(MerchantDocument(merchant_id=merchant.id, document_type="kyb", filename=filename))
     db.commit()
     
-    # Queue Celery task
-    from app.workers.celery_worker import process_onboarding
-    process_onboarding.delay(merchant.id, payload.model_dump(mode="json"))
+    # Queue Celery task (fall back to synchronous if broker unavailable)
+    try:
+        from app.workers.celery_worker import process_onboarding
+        process_onboarding.delay(merchant.id, payload.model_dump(mode="json"))
+    except Exception:
+        # No Celery broker available (e.g., on Render free tier without RabbitMQ)
+        # Run the pipeline synchronously so the endpoint still works
+        try:
+            process_onboarding_pipeline(db, merchant.id, payload.model_dump(mode="json"))
+            db.refresh(merchant)
+        except Exception as e:
+            print(f"Synchronous onboarding pipeline error: {e}")
 
     return merchant
 
